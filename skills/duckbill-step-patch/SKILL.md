@@ -1,37 +1,29 @@
 ---
 name: duckbill-step-patch
-description: Capture the current Git working tree without changing the real index and build a patch containing only one plan step's implementation changes. Use before and after step execution or code refinement when Spec Duckbill needs an isolated patch next to a plan.
+description: Capture a Git working-tree baseline without changing the real index and build one isolated plan-step patch. Use around step execution or completed-step code repair.
 ---
 
 # Duckbill Step Patch
 
-Use the bundled script to capture a step baseline and build its current implementation patch.
+Resolve `scripts/step-patch.mjs` relative to this file. Run in a Git repository with Node and Git; a commit is optional.
 
-Resolve `scripts/step-patch.mjs` relative to this `SKILL.md` and run it by its resolved path while passing the target repository through `--repo`.
+## Snapshot
 
-## Requirements
-
-- Run inside an initialized Git repository with `git` and `node`. A commit is not required; an unborn repository uses the empty tree as its starting point.
-- Keep the returned base tree for the current step until review and refinement finish.
-
-## Capture the Step Baseline
-
-Run before changing code:
+Before code changes:
 
 ```bash
-node <this-skill-directory>/scripts/step-patch.mjs snapshot --repo <repository-root>
+node <skill-directory>/scripts/step-patch.mjs snapshot --repo <repository-root>
 ```
 
-Read the JSON result and store its `tree` value in the plan's `Execution State`. The calling prompt creates that section on first execution when it is absent.
+Store JSON `tree` as plan `Base Tree`. The script captures tracked and untracked non-ignored files through a temporary
+index and MUST NOT change the real index.
 
-The script uses a temporary Git index. It includes tracked modifications and untracked, non-ignored files without staging anything in the real index.
+## Build
 
-## Build the Step Patch
-
-Run after implementation and plan status updates:
+After implementation and state updates:
 
 ```bash
-node <this-skill-directory>/scripts/step-patch.mjs build \
+node <skill-directory>/scripts/step-patch.mjs build \
   --repo <repository-root> \
   --base <base-tree> \
   --output <plan-directory>/steps/<step-id>.patch \
@@ -40,19 +32,15 @@ node <this-skill-directory>/scripts/step-patch.mjs build \
   --exclude '<plan-directory>/steps/*.patch'
 ```
 
-The patch compares the current working tree with the supplied step baseline. The explicit exclusions keep only the
-governing specification, plan state, and generated step patches out of the implementation patch. The script always
-excludes its own output path.
-
-Use additional repeated `--exclude <git-pathspec-pattern>` arguments only when the project requires other generated or
-local paths to be omitted. Never exclude the entire `specs/**` tree because it may contain project code or test data.
+These exclusions remove only governing Duckbill artifacts. MAY add project-specific generated/local exclusions. MUST
+NOT exclude all `specs/**`; it may contain implementation or test data. The script excludes its output automatically.
 
 ## Rules
 
-- Capture a new baseline when starting a different plan step.
-- You MUST reuse the existing baseline when refining the current step and overwrite only that step's patch.
-- Write the patch only inside the target repository.
-- You MUST NOT use `git add` against the real index.
-- You MUST NOT create commits, branches, stashes, or worktrees.
-- Do not build an isolated patch for a different step after subsequent steps have started.
-- Preserve patch files belonging to other step IDs.
+- Same Current Step retry/refinement MUST reuse its valid Base Tree and replace only its patch.
+- Starting a different step, returning to a non-current attempted step, or repairing a completed non-current step MUST
+  capture a fresh baseline immediately before edits, make it Current Step, and replace only its patch.
+- MUST preserve every other step patch. MUST NOT divide one delta across patches or reuse an older baseline after later
+  steps changed the tree.
+- Output MUST stay inside the repository.
+- MUST NOT use the real index or create commits, branches, stashes, or worktrees.

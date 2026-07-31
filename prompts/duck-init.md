@@ -3,20 +3,32 @@ description: Initialize an editable specification draft
 argument-hint: "<specification name>"
 ---
 
-Initialize a specification draft named:
-
-$ARGUMENTS
+Initialize a draft named `$ARGUMENTS`.
 
 Example: `/duck-init User Authentication`
 
+Output MUST be exactly three lines, in order, with nothing else:
+
+```text
+Changed: <created specification path or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
+```
+
 Flow:
 
-1. If the name is empty, show `Usage: /duck-init <specification name>` with the example above and stop.
-2. Treat the complete argument as the human-readable specification name, not as a feature description or path.
-3. Load and follow `duckbill-spec-author` in initialization mode. Create the draft through its bundled script; do not
-   derive the path, write the file manually, inspect the project, or develop the specification.
-4. If the script fails, show its exact error and stop without reporting a changed file.
-5. End with exactly three concise lines:
-    - `Changed: <created specification path>`
-    - `Status: draft; replace the [WRITE HERE] line`
-    - `Next: /duck-spec <created specification path>`
+1. Empty name: `Changed: none`; `Status: blocked; specification name is required`; `Next: none`.
+2. Treat the full argument as a human-readable name, not a path or feature description.
+3. Load `duckbill-spec-author` in initialization mode. MUST use its script; MUST NOT derive the path, write the file
+   manually, inspect the project, or develop the specification.
+4. Verify the draft contains only initialization state and input guidance. MUST NOT create a plan, execution state,
+   patch, or implementation code.
+5. Script failure before creation: return `blocked` with no changes. Verification failure after creation: remove only
+   this invocation's draft and verify removal. If safe cleanup fails, report the remaining path in `Changed`, use
+   `Status: failed; <reason>`, and `Next: none`.
+6. Success:
+   `Changed: <created specification path>`
+   `Status: draft; replace the [WRITE HERE] line`
+   `Next: /duck-spec <created specification path>`
+
+Recommendations belong only in `Next` and never run automatically.

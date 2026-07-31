@@ -1,47 +1,40 @@
 ---
 name: duckbill-spec-refiner
-description:
-  Refine an existing technical specification from user feedback without changing its implementation plan or source code.
-  Use when requirements, goals, constraints, design decisions, interfaces, or validation expectations must be corrected
-  or extended.
+description: Refine specification intent from feedback without changing its plan or code. Use for requirement, scope, constraint, contract, data, security, acceptance, or high-level design changes after a specification is ready.
 ---
 
 # Duckbill Spec Refiner
 
-Apply user feedback to one specification and keep it internally consistent.
-
-## Input
-
-Use the complete specification, user feedback, explicitly referenced file ranges, project instructions, and relevant
-verified project context supplied by the calling prompt.
+Apply specification-level feedback consistently to one specification.
 
 ## Required Reference
 
-Read [references/refinement-checklist.md](references/refinement-checklist.md) before tracing the effects of feedback.
+Read [references/refinement-checklist.md](references/refinement-checklist.md) before impact tracing.
 
-## Refinement Procedure
+## Modes
 
-1. Understand which requirements or decisions the feedback changes.
-2. Classify the change and trace its effects using the required checklist.
-3. Inspect referenced project files only when needed to verify facts.
-4. Update every affected specification section, not only the text named by the feedback.
-5. Apply the specification-integrity rules from the required checklist.
-6. Find normative behavior or constraints stated only outside Requirements and add or update the corresponding
-   requirement without duplicating its meaning.
-7. Preserve unrelated requirements. When feedback introduces or exposes a material unknown, return it to the calling
-   prompt and stop before saving. Do not ask the user directly.
-8. Remove a temporary `Open Questions` section after all questions are resolved. Re-read the specification and apply the
-   final check in the required checklist.
+- **Preflight:** classify, trace impact, inspect facts, and detect unknowns without writes.
+- **Refinement:** enter only after the caller confirms specification ownership, valid reciprocal links, permissions,
+  and clarification readiness.
+
+## Procedure
+
+1. Classify feedback as specification-level, plan-level, code defect, or material unknown. Continue only for the first.
+2. Identify changed requirements/decisions and trace every affected section with the reference.
+3. Inspect project files only to verify needed facts. Return every material unknown to the caller before edits; MUST
+   NOT ask the user directly.
+4. Update all affected sections, preserve unrelated requirements and stable IDs for unchanged meaning, and add/update
+   requirement IDs for normative content found outside Requirements.
+5. Remove resolved temporary `Open Questions`; re-read and run the reference final check.
 
 ## Boundaries
 
-- Do not modify any artifact except the selected specification.
-- Treat referenced files as read-only context unless they are the selected specification.
-- Do not invent product decisions that are absent from the feedback or project context.
-- Do not complete refinement before the calling prompt confirms clarification readiness.
-- Report when the feedback conflicts with an existing requirement.
+- MAY modify only the selected specification and MUST preserve its canonical `plan-file`.
+- MUST NOT change plan intent, execution state, patches, code, tests, or configuration; MUST NOT mark steps `stale`.
+- Invalid reciprocal links and non-specification feedback MUST STOP before all writes and return to the caller.
+- MUST NOT invent product decisions or complete before clarification readiness.
 
 ## Result
 
-Report changed requirement IDs and sections, removed or added scope, resolved decisions, and consequences that the
-implementation plan must absorb.
+Return changed requirement IDs/sections, scope changes, resolved decisions, and consequences for later manual plan
+synchronization. The caller owns the strict footer and `Next`.

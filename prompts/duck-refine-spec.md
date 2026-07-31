@@ -1,50 +1,60 @@
 ---
-description: Refine a specification and synchronize its implementation plan
+description: Refine specification intent without changing its plan or implementation
 argument-hint: "<spec-file>[#L<line>[-<end>]] <feedback>"
 ---
 
-Refine a specification and synchronize a related implementation plan when one exists.
+Refine specification `$1` from feedback `${@:2}`.
 
-- Specification: `$1`
-- Feedback: `${@:2}`
+Example: `/duck-refine-spec specs/user-auth.md#L35 Require one-time recovery links`
 
-Example:
+This command MAY change only specification intent in the selected file. It MUST preserve `plan-file`, plan intent,
+execution state, patches, and implementation code; it MUST NOT mark a step `stale` or synchronize a plan.
+
+Output MUST be exactly three lines, in order, with nothing else:
 
 ```text
-/duck-refine-spec specs/user-auth.md#L35 Require one-time recovery links
+Changed: <spec-file or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
 ```
 
 Flow:
 
-1. If the specification reference or feedback is empty, show
-   `Usage: /duck-refine-spec <spec-file>[#L<line>[-<end>]] <feedback>` with the example above and stop.
-2. Parse `$1` as a repository-relative specification path, optionally followed by exactly `#L<line>` or
-   `#L<start>-<end>`. Remove the optional line fragment to obtain the path. Stop on a missing path or invalid range.
-   Read selected lines as initial feedback context, then validate and read the complete specification and applicable
-   project instructions. For `status: draft`, stop and recommend `/duck-spec <spec-file>`.
-3. Resolve the related plan only from specification frontmatter `plan-file`:
-   - when `plan-file` is absent, continue without a plan;
-   - when present, require the canonical repository-relative path `specs/plans/<name>/plan.md` to an existing plan, read
-     the plan completely, and verify its frontmatter `spec-file` identifies the selected specification;
-   - stop when either link is invalid, missing, or conflicting. Do not search for another plan or relink documents.
-4. Extract and read feedback references written as `path`, `path#L<line>`, or `path#L<start>-<end>`. Do not interpret
-   other line-reference formats. Stop on an invalid file or range.
-5. Record the original requirements and, when present, plan structure.
-6. Load `duckbill-clarifier`. Ask about every material unknown introduced or exposed by the feedback and pause for
-   answers. Repeat until the specification readiness gate passes.
-7. Load and follow `duckbill-spec-refiner`; modify only the selected specification in this phase and keep its reciprocal
-   `plan-file` link when one exists. If it returns another material unknown, return to step 6.
-8. Re-read it, identify the semantic changes, and require the spec refiner final check and the clarifier specification
-   readiness gate to pass.
-9. When a plan exists, load and follow `duckbill-plan-refiner` to synchronize it. If synchronization exposes a material
-   implementation unknown, use `duckbill-clarifier`, ask, pause, and finish the plan only after its readiness gate
-   passes. Do not change code.
-10. Re-read every changed file and verify reciprocal links. End with exactly three concise lines:
-    - `Changed: <changed paths or none>`
-    - `Status: <ready, blocked, or stale, with a short reason>`
-    - `Next: /duck-execute <plan path> <first affected step ID>` when a related plan and next action are unambiguous;
-      use `/duck-plan <specification path>` when no plan exists and the specification is ready; otherwise `Next: none`
-      Add details only for unresolved questions, blockers, or verification failures.
+1. Missing reference or feedback: return `blocked; usage: /duck-refine-spec <spec-file> <feedback>` with
+   `Changed: none`, `Next: none`.
+2. Parse one repository-relative specification plus optional exact `#L<line>` or `#L<start>-<end>`. Validate the range,
+   read the complete file and referenced context. Invalid input returns `blocked` with no changes. A draft returns
+   `blocked; specification draft is incomplete`, `Next: /duck-spec <spec-file>`.
+3. Require canonical `plan-file`. Missing/wrong value returns `blocked; specification plan link is invalid`,
+   `Next: /duck-spec <spec-file>`. If that plan exists, require its reciprocal `spec-file`; a bad backlink returns
+   `blocked; linked plan backlink is invalid`, `Next: /duck-plan <spec-file>`. A nonexistent target means no plan.
+   Refinement MUST NOT repair workflow metadata.
+4. Record the specification, linked plan/state/patches, and implementation tree needed to verify the write boundary.
+5. Load `duckbill-clarifier` and `duckbill-spec-refiner` in preflight mode. Finish classification, impact tracing,
+   permission checks, and clarification before any write:
 
-Do not modify implementation or referenced context files. Ask instead of guessing when requirements conflict or a
-product decision is missing.
+| Feedback | Action | Status | Next |
+|---|---|---|---|
+| specification-level change | continue | — | — |
+| plan-level change, plan exists | STOP | `blocked; requested change belongs in the plan` | `/duck-refine-plan <plan-file> whole <normalized feedback>` |
+| plan-level change, no plan | STOP | same | `/duck-plan <spec-file>` |
+| code defect in one `completed` step | STOP | `blocked; requested change belongs in implementation code` | first earlier `/duck-execute`, otherwise `/duck-refine-code <plan-file> <step-id> <normalized feedback>` |
+| material unknown or no unique completed owner | STOP | `blocked; material unknown: <concise clarification question>` | `none` |
+
+   Earlier new, unexecuted, `partial`, `failed`, or `stale` work takes precedence over code repair. Resolve every
+   specification-level unknown introduced by the feedback before continuing.
+6. In refinement mode, modify only the specification. Preserve stable IDs for unchanged meaning and the valid
+   `plan-file`. MUST NOT load or invoke `duckbill-plan-refiner`.
+7. Re-read the result; require the specification final/readiness checks and identify exact changed requirement IDs.
+   Verify linked plan, all execution state, patches, and implementation code byte-for-byte unchanged.
+8. Select the result:
+
+| Outcome | Status | Next |
+|---|---|---|
+| changed, linked plan | `ready; <requirement IDs> changed, linked plan requires synchronization` | `/duck-refine-plan <plan-file> whole Synchronize with the updated specification` |
+| changed, no plan | `ready; <requirement IDs> changed` | `/duck-plan <spec-file>` |
+| unchanged, linked plan unsynchronized | `unchanged; linked plan requires synchronization` | same exact `/duck-refine-plan` command |
+| unchanged, synchronized/no plan | `unchanged; <reason>` | `none` |
+
+Every STOP/blocked/routed result MUST use `Changed: none` and leave all files and execution state unchanged.
+Recommendations belong only in `Next` and never run automatically.

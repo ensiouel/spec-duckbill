@@ -1,104 +1,59 @@
 # Plan Refinement Guide
 
-Read this reference before changing a plan's step structure or execution state.
+## Classify Before Writing
 
-## Select the Operation
+| Class | Boundary | Action |
+|---|---|---|
+| specification-level | behavior/scope, constraints, contracts, data, security, acceptance, high-level design | STOP; `/duck-refine-spec` |
+| plan-level | approach/scope, prerequisite text/order, steps, context, Actions, criteria text/order, dependencies, validation, risks, mappings, order/structure | refine plan |
+| code defect | one `completed` step violates correct specification and plan intent | STOP; earlier execution work first, else `/duck-refine-code` |
+| material unknown | intended result or owner is unclear | STOP and clarify |
 
-- Rewrite a step when its outcome is still correct but its context, actions, or criteria are unclear.
-- Split a step when it contains distinct outcomes that can be executed and verified separately.
-- Merge steps when they describe one implementation outcome, repeatedly edit the same concern, or one leaves the project
-  needlessly broken.
-- Add a step when new required work has no existing home.
-- Remove a step when its outcome is no longer required.
-- Reorder steps only to satisfy a real dependency.
+New/unexecuted, `partial`, `failed`, or `stale` work always routes to `/duck-execute` before code repair. The governing
+specification is read-only; synchronization means reading its current intent and updating only the plan.
+
+`spec-file` and reciprocal specification `plan-file` MUST remain canonical. Invalid links block all writes and route to
+their authoring owner when exact input is known. Refinement MUST NOT relink either file.
+
+## Select the Smallest Operation
+
+- Rewrite when the outcome is unchanged but intent is unclear.
+- Split distinct independently executable outcomes.
+- Merge one outcome that repeatedly edits the same concern or leaves a needless broken state.
+- Add required work with no home; remove an unneeded outcome.
+- Reorder only for a real dependency.
+
+## Preserve Identity and Patch Ownership
+
+- Preserve ID while the logical outcome remains; renumber/reorder headings without changing it.
+- Assign new IDs to new outcomes. Retire an ID only when removed, split, or merged away.
+- Before retiring Current Step while it owns a valid Base Tree, STOP with no writes. The safe choices are: preserve one
+  coherent outcome under the current ID, or restore implementation to Base Tree with explicit authorization before
+  rerunning refinement.
+- MUST NOT restore automatically or persist ambiguous `retired:` state. A pre-existing `retired:<id>` uses the same
+  blocked recovery.
 
 ## Preserve Execution Truth
 
-- Preserve unchanged criteria and execution records.
-- Reset changed criteria to `[ ]`.
-- Reset a criterion when its evidence no longer proves the revised behavior.
-- Set an existing Execution block to `Status: stale` when its evidence no longer proves the revised step. Do not add one
-  to an unexecuted step.
-- If the current step changes semantically, preserve `Base Tree` and set `Patch Status` to `stale`.
-- Do not regenerate or edit the patch during plan-only refinement.
-- When splitting an executed step, do not copy completed status onto newly defined work.
-- When removing the current step, retain the baseline for diagnosis, set the patch stale, and report that a new
-  execution target must be selected.
+- Preserve unchanged criteria/records; uncheck changed criteria and any evidence invalidated by revised intent.
+- Uncheck a prerequisite when revised intent invalidates its evidence.
+- Mark an affected existing Execution block `stale` when prior evidence no longer proves the step. MUST NOT create one
+  for an unexecuted step or copy completion to new split work.
+- If Current Step changes semantically, preserve Base Tree and set Patch Status `stale`. MUST NOT edit/rebuild a patch.
+- Preserve unrelated state.
+- Reset the whole Validation Checklist when changed requirements, steps, dependencies, or cross-step behavior may
+  invalidate it; otherwise preserve independently proven items.
+- Specification refinement alone never stales state. This later manual synchronization determines affected steps.
 
-## Preserve Step Identity
+## Preserve Traceability
 
-- Preserve a step ID when its logical outcome remains the same.
-- Renumber or reorder headings without changing IDs.
-- Assign unique new IDs to new outcomes.
-- Use IDs for dependencies, step-level requirement mappings, and `Current Step`.
-- Retire the original ID when a step is split, merged into a different outcome, or removed.
-- If a structural change retires the current step ID while a valid `Base Tree` exists, set `Current Step` to
-  `retired:<old-id>`, preserve the baseline, mark the patch stale with the structural reason, and stop automatic code
-  continuation. Report that the existing implementation patch cannot be safely divided between new steps.
-- Report two safe recovery choices: restore one coherent step with the original ID, or explicitly restore implementation
-  to `Base Tree` before executing replacement steps. Never perform the restore without user authorization.
-
-## Preserve Requirement Traceability
-
-- Keep requirement and acceptance IDs exactly aligned with the governing specification.
-- Update each affected step's `Requirements` field.
-- Update each affected step's `Requirements` field after every split, merge, addition, removal, or reorder.
-- Preserve mappings for unchanged steps.
-- Remove mappings for deleted requirements.
-- Add mappings for new requirements before considering synchronization complete.
-- Do not invent a requirement or acceptance ID that is absent from the specification.
-- Preserve exact ID prefixes on Validation Checklist items and add them when an item provides final-only coverage.
-- Do not add a separate coverage table. Derive coverage status from step mappings and current execution evidence when
-  reporting.
-
-## Examples
-
-Feedback:
-
-```text
-Split password hashing and registration integration. Put hashing in a reusable service.
-```
-
-Good result:
-
-```text
-Step 1 (`hash-password`): Introduce and verify the password hashing service
-Step 2 (`integrate-password-registration`): Integrate password hashing into registration
-```
-
-`integrate-password-registration` depends on `hash-password`. Criteria are rewritten and unchecked where their meaning
-changed.
-
-Bad result:
-
-```text
-Step `create-password-file`: Create file
-Step `add-password-method`: Add method
-Step `test-password-method`: Add unit test
-Step `integrate-password-registration`: Integrate registration
-```
-
-The first three items are one coherent capability and should remain one step.
-
-Whole-plan feedback:
-
-```text
-specs/plans/user-auth/plan.md#L70-110 Move audit logging after authentication is functional.
-```
-
-Read the range and surrounding steps. Reorder only if dependencies allow it. Preserve step IDs and update display
-numbers.
+- Keep exact requirement/acceptance IDs aligned with the specification.
+- Recompute affected `Requirements` after split/merge/add/remove/reorder; preserve unaffected mappings.
+- Remove deleted IDs; map every new ID before synchronization completes; MUST NOT invent IDs.
+- Preserve/add exact ID prefixes on final-only validation items. Derive coverage; MUST NOT add a table.
 
 ## Validation
 
-Confirm:
-
-- the plan still covers the governing specification;
-- every step has a distinct outcome;
-- step IDs are unique and stable for unchanged outcomes;
-- numbering is continuous;
-- dependencies reference earlier existing step IDs and contain no cycles;
-- file references and commands remain credible;
-- criteria match their revised actions;
-- every in-scope requirement is mapped to a step or overall validation item;
-- execution state and patch status tell the truth.
+Confirm complete specification coverage, unique/stable IDs, continuous numbering, earlier acyclic dependencies,
+credible paths/commands, coherent boundaries/criteria, truthful execution/patch state, and unchanged specification,
+code, tests, configuration, and patches. Report the first new or stale step for manual `/duck-execute`.

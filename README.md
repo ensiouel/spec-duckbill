@@ -1,30 +1,29 @@
 # Spec Duckbill
 
-Spec Duckbill is a Pi package for a controlled `spec -> plan -> steps` development workflow.
+Spec Duckbill is a Pi package for a manually advanced waterfall:
+
+```text
+spec -> plan -> code
+```
+
+One command changes one level, verifies its result, recommends one `Next` action, and stops. The user runs every
+transition manually; Duckbill never invokes the next command.
 
 ## Installation
-
-Install the package directly from GitHub:
 
 ```bash
 pi install https://github.com/ensiouel/spec-duckbill
 ```
 
-For local development, run this command from the repository root:
+For local development: `pi install .`
 
-```bash
-pi install .
-```
-
-Requirements: Pi, Node.js 20 or newer, and Git.
-
-Add generated step patches to the target project's `.gitignore`:
+Requirements: Pi, Node.js 20+, and Git. Add generated patches to the target project's `.gitignore`:
 
 ```gitignore
 specs/plans/*/steps/*.patch
 ```
 
-## Quick start
+## Quick Start
 
 ```text
 /duck-init Password Authentication
@@ -33,32 +32,63 @@ specs/plans/*/steps/*.patch
 /duck-execute specs/plans/password-authentication/plan.md hash-password
 ```
 
-`/duck-init` creates a draft with a `[WRITE HERE]` placeholder. Replace that line with the feature description before
-running `/duck-spec`. Duckbill asks about important unknowns before completing a specification or plan.
+Replace the draft's `[WRITE HERE]` line before `/duck-spec`.
 
-Every command ends with:
+Every command returns exactly:
 
 ```text
 Changed: <changed files or none>
-Status: <current result>
-Next: <next Duckbill command or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
 ```
 
-## Core workflow
+Recommendations appear only in `Next`. A command in `Next` is never run automatically.
 
-```text
-/duck-init <specification name>
-/duck-spec <spec-file>
-/duck-plan <spec-file>
-/duck-execute <plan-file> <step>
-```
+## Ownership
 
-Use the stable step ID for `<step>`. A step number or quoted heading is also accepted.
+| Level | Owns | Commands |
+|---|---|---|
+| specification intent | scope, behavior/constraints, contracts, data, security, acceptance, high-level design | `/duck-spec`, `/duck-refine-spec` |
+| plan intent | implementation approach/scope, prerequisites, steps, Actions, Success Criteria, dependencies, mappings, validation, risks | `/duck-plan`, `/duck-refine-plan` |
+| execution state | checkmarks, step Status/Attempt/Files Changed, Base Tree, Current Step, Patch state | `/duck-execute`; refiners only as allowed |
+| implementation code | project code, tests, and step implementation files | `/duck-execute`, `/duck-refine-code` |
 
-`/duck-execute` implements exactly one step and checks each of its success criteria. Steps run in plan order. After the
-last step, Duckbill runs the plan's final validation checklist.
+Execution state is stored in the plan but is not plan intent. New plans omit execution records; `/duck-execute` creates
+them lazily.
 
-## Advanced refinement
+The frontmatter links are reciprocal workflow metadata: the specification owns `plan-file`; the plan owns `spec-file`.
+`/duck-spec` and `/duck-plan` may restore only their own link. Refinement commands preserve links and route invalid
+metadata to its owner.
+
+## Routing
+
+| Situation | Next |
+|---|---|
+| specification changed | manual `/duck-refine-plan`, or `/duck-plan` when absent |
+| plan intent changed | first affected `/duck-execute` |
+| new/unexecuted, `partial`, `failed`, or `stale` step | `/duck-execute` |
+| code defect in a `completed` step with correct documents | `/duck-refine-code` |
+| specification-level feedback in a lower command | `/duck-refine-spec` |
+| plan-level feedback in a code command | `/duck-refine-plan` |
+| material unknown or external action | clarify/act first; `Next: none` |
+
+`/duck-refine-spec` changes only specification intent. It reports changed requirement IDs but does not synchronize the
+plan or mark steps stale.
+
+`/duck-refine-plan` changes plan intent and only the execution state needed to keep evidence truthful. During manual
+synchronization it preserves stable IDs for unchanged outcomes, marks affected executed steps `stale`, and resets
+invalidated evidence. It never edits specification or code.
+
+`/duck-execute` implements exactly the first executable step and stops. `/duck-refine-code` repairs only a `completed`
+step whose specification and plan intent already describe the correct behavior. Neither command may change intent.
+
+All mutable commands classify ownership, permissions, and material unknowns before writing. A `blocked` result changes
+no files or execution state.
+
+Command-result Status prefixes are `draft | ready | completed | partial | failed | blocked | unchanged`. Persisted step
+Status is `completed | partial | failed | stale`; only `/duck-refine-plan` writes `stale`.
+
+## Refinement Syntax
 
 ```text
 /duck-refine-spec <spec-file>[#L<line>[-<end>]] <feedback>
@@ -66,79 +96,33 @@ last step, Duckbill runs the plan's final validation checklist.
 /duck-refine-code <plan-file>[#L<line>[-<end>]] <step> <feedback>
 ```
 
-Examples:
+A line reference adds context; it does not grant edit permission.
 
-```text
-/duck-refine-spec specs/user-auth.md#L35 Require one-time recovery links
-/duck-refine-plan specs/plans/user-auth/plan.md#L70-110 whole Reorder these steps by dependency
-/duck-refine-plan specs/plans/user-auth/plan.md store-user Split storage from API work
-/duck-refine-code specs/plans/user-auth/plan.md hash-password src/auth/password.go#L42 Preserve the original error
-```
-
-A file reference may select a whole file, one line, or a line range. It supplies context but does not grant permission to
-change that file.
-
-## Generated files
-
-The specification and plan point to each other through frontmatter:
-
-```yaml
-# specs/password-authentication.md
----
-plan-file: specs/plans/password-authentication/plan.md
----
-```
-
-```yaml
-# specs/plans/password-authentication/plan.md
----
-spec-file: specs/password-authentication.md
----
-```
-
-Each plan has its own directory:
+## Generated Artifacts
 
 ```text
 specs/
-├── password-authentication.md
-└── plans/
-    └── password-authentication/
-        ├── plan.md
-        └── steps/
-            └── <step-id>.patch
+├── <name>.md                         # plan-file: specs/plans/<name>/plan.md
+└── plans/<name>/
+    ├── plan.md                       # spec-file: specs/<name>.md
+    └── steps/<step-id>.patch
 ```
 
-Specifications use stable requirement IDs such as `FR-001`, `NFR-001`, and `AC-001`. Plans map them to stable step IDs
-such as `hash-password`.
+Specifications use stable `FR-`, `NFR-`, and `AC-` IDs. Plans map them to stable step IDs, execute in order, and keep
+one isolated patch per step.
 
-Refining a specification or plan may mark affected executed steps as `stale`. Execute those steps again before treating
-the plan as complete.
-
-## Safety and limitations
-
-Every step patch contains only changes made after that step's baseline. Patches are not cumulative. The patch builder
-uses a temporary Git index, so it does not stage files in the user's real index. It does not create commits, branches,
-stashes, or worktrees. Repositories without a first commit are supported through Git's empty tree.
-
-Duckbill excludes the governing specification, plan, and generated step patches from an implementation patch. It does
-not exclude the entire `specs/` directory because projects may keep code or test data there.
-
-Generated patches are review artifacts, not a substitute for commits or backups. Commands may still edit project files
-while executing an approved plan step.
-
-`/duck-plan` may replace only an untouched plan after confirmation. Use `/duck-refine-plan` when a plan already has
-execution state, execution records, or step patches.
+Patches compare an attempt with its captured working-tree baseline; they are not cumulative. Re-entering a non-current
+step captures a fresh baseline and replaces only that step's patch. The builder uses a temporary Git index and creates
+no commit, branch, stash, or worktree. It excludes the governing specification, plan, and generated patches—not the
+whole `specs/` tree. Patches are review artifacts, not backups.
 
 ## Development
 
-Run the tests and syntax checks:
-
 ```bash
-npm test
-npm run check
+node --test
+node --check skills/duckbill-spec-author/scripts/init-spec.mjs
+node --check skills/duckbill-step-patch/scripts/step-patch.mjs
 ```
-
-The test suite uses Node.js's built-in test runner and requires Git. CI runs on Linux and Windows.
 
 ## License
 

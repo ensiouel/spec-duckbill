@@ -1,65 +1,39 @@
 # Code Feedback Guide
 
-Read this reference before correcting code from feedback.
+## Interpret and Classify
 
-## Interpret Feedback
+Identify the observed problem, expected governed behavior, affected implementation, and proving evidence. If expected
+behavior is absent from governing intent, classify the level before writes.
 
-Translate feedback into:
+| Class | Boundary | Route |
+|---|---|---|
+| code defect | a `completed` step's code violates already-correct specification and plan intent | `/duck-refine-code` |
+| plan-level change | approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies, validation, risks, mappings, or structure must change | `/duck-refine-plan` |
+| specification-level change | scope, behavior/constraints, contracts, data, security, acceptance, or high-level design must change | `/duck-refine-spec` |
+| material unknown | expected behavior or owner cannot be established | clarify |
 
-1. the observed problem;
-2. the expected behavior already required by the plan;
-3. the affected implementation area;
-4. the evidence that will prove the correction.
+MUST STOP without mutations for every non-code class. A new/unexecuted, `partial`, `failed`, or `stale` step is
+execution work and MUST route to `/duck-execute`, even when feedback calls it a defect.
 
-If item 2 is not present in the plan or specification, this is a plan change rather than code-only refinement.
+If current code already satisfies governing intent, return unchanged. MUST NOT create/increment an Attempt or rebuild a
+patch.
 
-## Local References
+Boundary example: “Preserve the original error cause” is code-only when the plan already requires it. “Split hashing
+from registration into a reusable service” changes plan intent and requires later manual execution.
 
-Feedback may contain:
+## Feedback References
 
-```text
-internal/auth/password.go
-internal/auth/password.go#L42
-internal/auth/password.go#L42-58
-specs/plans/user-auth/steps/hash-password.patch#L120
-```
-
-Read every referenced range with enough surrounding context. A reference identifies evidence or context; it does not
-authorize unrelated edits.
-
-Patch lines describe the complete current result of the selected step from its baseline. Source-file lines describe
-current working-tree content. When they appear to disagree, inspect both the working tree and patch before editing.
-
-## Scope Decisions
-
-Code-only refinement is appropriate:
-
-```text
-internal/auth/password.go#L42 Preserve the original error as the cause.
-```
-
-Plan refinement is required:
-
-```text
-Replace password authentication with passkeys.
-```
-
-Combined plan and code refinement may be appropriate:
-
-```text
-Split hashing from registration and move it to a reusable service.
-```
+Accept repository paths with optional `#L<line>` or `#L<start>-<end>`. Read the range and enough surrounding context.
+A reference is evidence, not edit permission. Patch lines show the selected step result from its baseline; source lines
+show the current working tree. Inspect both when they disagree.
 
 ## Validation
 
 - Re-run checks related to changed behavior.
-- Return every selected-step criterion in its exact wording and order.
-- Mark a criterion `[x]` only when current direct evidence proves every claim. Otherwise return `[ ]` with the failure
-  or missing evidence.
-- Use `completed` only when every criterion passes, `partial` when implementation changed but a criterion remains
-  unproven, and `failed` when the intended correction could not be produced.
-- When the correction would complete every implementation step, validate every final plan checklist item against the
-  combined implementation and report its exact wording, order, checkbox, and evidence separately.
-- Inspect the final code diff. The calling workflow inspects the regenerated patch after the refiner returns.
-- Confirm no specification or plan intent changed.
-- Report any check that could not run.
+- Return each selected-step criterion in exact wording/order; `[x]` requires current direct evidence for every claim.
+- Use `completed` only when all criteria pass; `partial` when code changed but proof remains incomplete; `failed` when
+  no intended correction was produced.
+- If all implementation steps would be complete, evaluate every final checklist item against the combined result.
+- Inspect the code diff; report unavailable checks; confirm specification and plan intent unchanged.
+
+The caller owns execution-state persistence and patch regeneration.

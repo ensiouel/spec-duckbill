@@ -1,73 +1,46 @@
 # Specification Refinement Checklist
 
-Read this reference before applying specification feedback.
+## Classify First
 
-## Trace the Change
+| Class | Changes | Action |
+|---|---|---|
+| specification-level | scope, behavior/constraints, contracts, data, security, acceptance, high-level design | refine specification |
+| plan-level | implementation approach, steps, Actions, criteria, dependencies, mappings, order | route without writes |
+| code defect | code violates correct specification and plan intent | route without writes |
+| material unknown | owner or intended behavior is unclear | clarify without writes |
 
-Translate feedback into one or more semantic changes:
+Only specification-level feedback MAY change the specification.
 
-- add, remove, or alter behavior;
-- change scope or a non-goal;
-- add or change a constraint;
-- revise a design decision or interface;
-- correct an assumption or project fact;
-- change validation expectations.
+## Trace Effects
 
-Then inspect every affected section:
+Translate feedback into semantic changes, then inspect related sections:
 
-| Changed item           | Also inspect                                    |
-|------------------------|-------------------------------------------------|
-| Goal or non-goal       | Requirements, scope, testing                    |
-| Functional requirement | Design, interfaces, data, security, testing     |
-| Constraint             | Design, risks, testing                          |
-| Data lifecycle         | Interfaces, security, failure behavior, testing |
-| Interface              | Requirements, compatibility, errors, testing    |
-| Security rule          | Requirements, design, data, testing             |
+| Changed item | Also inspect |
+|---|---|
+| goal/non-goal | requirements, scope, testing |
+| functional behavior | design, interfaces, data, security, failures, testing |
+| constraint | design, operations, testing |
+| data lifecycle | interfaces, security, failure behavior, testing |
+| interface | requirements, compatibility, errors, testing |
+| security | requirements, design, data, testing |
 
-## Preserve Specification Integrity
+A line reference supplies context only. Update every affected section, not only the named lines.
 
-- Preserve stable IDs for unchanged requirements and acceptance criteria.
-- Assign new unique `FR-`, `NFR-`, or `AC-` IDs to new meaning. Never reuse a removed ID for different meaning.
-- Keep Technical Design present and coherent at the level of components, boundaries, responsibilities, and flow.
-- Add exact implementation details only when the feedback or a specification-scoped clarification answer supplies them.
-- Represent every normative behavior or constraint under Requirements with a stable ID.
-- Do not leave required behavior as unresolved alternatives to be selected during planning.
-- Preserve unrelated user-supplied details and omit newly considered implementation choices left to planning.
+## Preserve Integrity
 
-## Examples
-
-Feedback:
-
-```text
-Split password hashing from registration. Hashing must be reusable by password reset.
-```
-
-Good refinement:
-
-- require a reusable hashing capability;
-- keep registration behavior separate;
-- update technical boundaries;
-- add verification for both hashing and registration;
-- update references if new project context was supplied.
-
-Bad refinement:
-
-- rename one heading while leaving registration requirements and testing unchanged.
-
-Feedback with a line reference:
-
-```text
-specs/user-auth.md#L42-49 Lockout lasts 15 minutes, not until manual reset.
-```
-
-Read the referenced range and surrounding section. Update all affected behavior, security, state lifecycle, and test
-expectations. Do not edit the referenced file if it is not the selected specification.
+- Preserve stable IDs for unchanged meaning. New meaning gets a new unique `FR`, `NFR`, or `AC`; removed IDs are never
+  reused.
+- Keep Technical Design present and coherent at the high-level boundary.
+- Keep supplied technical detail only when it is required specification intent; route discretionary files, symbols,
+  libraries, algorithms, Actions, and code structure to the plan.
+- Represent every normative behavior/constraint under Requirements with a stable ID.
+- MUST NOT defer required behavior as unresolved alternatives.
+- Preserve unrelated user intent and omit new implementation choices.
 
 ## Final Check
 
-- The feedback is represented as behavior or a constraint, not as an accidental implementation task.
-- Related sections agree.
-- Unrelated requirements remain intact.
-- Stable IDs, Technical Design, normative requirements, and resolved decisions pass the integrity rules above.
-- Conflicts and material unknowns are resolved through clarification before saving.
-- Consequences for the plan are explicit.
+- Feedback is represented as behavior/constraint; all related sections agree.
+- Stable IDs, normative coverage, Technical Design, and resolved decisions remain valid.
+- Conflicts and material unknowns were resolved before saving.
+- Report exact changed requirement IDs and manual plan-synchronization consequences.
+- Plan intent, execution state, patches, code, tests, and configuration are unchanged; no step became `stale`.

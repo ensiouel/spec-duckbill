@@ -1,54 +1,47 @@
 ---
 name: duckbill-step-executor
-description: Execute exactly one selected step from an implementation plan using supplied specification and repository context. Use when an agent must implement one bounded plan step, validate all of its success criteria, and report actual changes without proceeding to another step.
+description: Execute exactly one ordered plan step using its governing specification and repository context. Use to implement one bounded step, prove every success criterion, optionally run final plan validation, and stop before another step.
 ---
 
 # Duckbill Step Executor
 
-Implement one selected plan step and stop.
-
-## Input
-
-The calling prompt supplies the plan, selected step, relevant specification, user feedback when present, and project
-instructions. You MUST treat the selected step as the implementation boundary.
+Implement one selected step and stop.
 
 ## Required Reference
 
-Read [references/execution-report.md](references/execution-report.md) before validating criteria and reporting the
-result.
+Read [references/execution-report.md](references/execution-report.md) before validation or reporting.
 
-## Execution Procedure
+## Modes
 
-1. Read the complete selected step, its requirement IDs, and its dependencies.
-2. Read referenced context and inspect the current implementation before editing.
-3. Confirm that prerequisite work required by the step is present. Report a blocker when it is not.
-4. Map actions and criteria to the implementation files and checks they require.
-5. Perform the step's actions. Adapt implementation details to the current codebase without expanding the requested
-   behavior.
-6. Diagnose and fix failures directly caused by this step when the fix stays within its boundary.
-7. Validate and report every success criterion using the evidence rules and exact format in `execution-report.md`.
-8. When the caller indicates that this result would complete every implementation step, validate the plan using the
-   final-validation rules in `execution-report.md`.
-9. Inspect the final diff and confirm that reported files actually changed.
-10. Classify and report the result using `execution-report.md`.
+- **Preflight:** perform procedure steps 1–4 and boundary classification read-only. MUST NOT perform Actions or change
+  state, code, tests, configuration, or patches.
+- **Execution:** enter only after the caller passes permissions, order, prerequisites, dependencies, and clarification.
+
+## Procedure
+
+1. Read the complete step, requirement IDs, dependencies, governing specification, and project instructions.
+2. Inspect referenced context and current implementation.
+3. Verify prerequisites and all earlier steps. Return the first blocker; MUST NOT skip earlier work.
+4. Map Actions/criteria to required files and checks; return specification- or plan-level mismatches before writes.
+5. Perform only this step's Actions. Adapt implementation detail to current code without expanding behavior.
+6. Diagnose/fix failures caused by this step when the fix remains inside its boundary.
+7. Evaluate every criterion with the reference evidence rules.
+8. When this would complete all implementation steps, run every final checklist item. MUST NOT edit another step to
+   make it pass; classify the owner for the caller.
+9. Inspect the final diff, confirm actual changed files, and classify the result.
 
 ## Boundaries
 
-- Do not execute another plan step.
-- Do not execute the selected step unless every earlier plan step is completed. Report the first incomplete earlier step
-  as a blocker.
-- Do not modify the plan or specification.
-- Do not change requirement-to-step mappings; report a mismatch as a plan problem.
-- Do not change unrelated code.
-- Do not claim a criterion passed without evidence.
-- Do not omit a criterion or preserve an old checked state when the current implementation no longer proves it.
-- You MUST NOT run destructive, production, deployment, or irreversible commands unless the user explicitly authorized
-  them.
-- Do not hide a skipped or unavailable check behind a general success statement.
-- Do not create or report the step patch. The calling workflow owns patch creation after execution.
+- MUST execute exactly one step in order; MUST NOT modify specification intent or plan intent.
+- The caller MAY persist execution state but owns patch creation.
+- MUST NOT change approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies,
+  validation definitions, risks, structure, or mappings.
+- MUST NOT touch unrelated code, omit a criterion, reuse stale evidence, or claim success without direct proof.
+- MUST report skipped/unavailable checks.
+- MUST NOT run destructive, production, deployment, or irreversible commands without explicit user authorization.
 
 ## Result
 
-Return the report defined in the required reference. Include actual created, modified, and deleted files, checks, an
-exact ordered result for every step criterion, optional final-plan validation results, blockers, assumptions, and
-status.
+Return the reference report with actual files, checks, exact ordered criterion evidence, optional final validation,
+coverage, blockers/assumptions, and `completed|partial|failed`. The caller owns state persistence, patch, footer, and
+`Next`.

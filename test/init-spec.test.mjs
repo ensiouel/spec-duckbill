@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {mkdtempSync, readFileSync, rmSync} from "node:fs";
+import {mkdtempSync, readFileSync, readdirSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
 import {spawnSync} from "node:child_process";
@@ -27,18 +27,27 @@ test("creates a new specification", (context) => {
         title: "Password Authentication",
         slug: "password-authentication",
     });
-    assert.match(readFileSync(join(repo, "specs/password-authentication.md"), "utf8"), /# Password Authentication/);
+    const draft = readFileSync(join(repo, "specs/password-authentication.md"), "utf8");
+    assert.match(draft, /^---\nstatus: draft\n---/u);
+    assert.match(draft, /# Password Authentication/);
+    assert.match(draft, /\[WRITE HERE\]/u);
+    assert.doesNotMatch(draft, /plan-file|Execution State|\*\*Execution:\*\*/u);
+    assert.deepEqual(readdirSync(join(repo, "specs")), ["password-authentication.md"]);
 });
 
 test("does not overwrite an existing specification", (context) => {
     const repo = temporaryDirectory();
     context.after(() => rmSync(repo, {recursive: true, force: true}));
     assert.equal(run(repo, "Existing Spec").status, 0);
+    const target = join(repo, "specs/existing-spec.md");
+    const before = readFileSync(target, "utf8");
 
     const result = run(repo, "Existing Spec");
 
     assert.equal(result.status, 1);
     assert.match(result.stderr, /target already exists/);
+    assert.equal(readFileSync(target, "utf8"), before);
+    assert.deepEqual(readdirSync(join(repo, "specs")), ["existing-spec.md"]);
 });
 
 test("normalizes Unicode names and rejects unsafe names", (context) => {

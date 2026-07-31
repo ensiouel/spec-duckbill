@@ -1,58 +1,46 @@
 ---
 name: duckbill-plan-author
-description: Create or substantially rewrite an executable implementation plan from an existing technical specification. Use after specification authoring when requirements must be mapped to coherent implementation steps with verified project context, dependencies, actions, and measurable success criteria.
+description: Create a new executable plan from a ready technical specification, or restore only an existing plan's reciprocal specification link. Use after specification authoring to map stable requirements into verified, coherent steps; refine existing plan intent with duckbill-plan-refiner.
 ---
 
 # Duckbill Plan Author
 
-Turn the supplied source of truth into a concise implementation roadmap.
-
-## Input
-
-Use the existing specification and target paths supplied by the calling prompt. Treat the specification as the source of
-truth.
+Create a concise executable roadmap from the governing specification.
 
 ## Required References
 
-- Read [references/plan-format.md](references/plan-format.md) before creating or substantially rewriting a plan.
-- Read [references/project-analysis.md](references/project-analysis.md) before choosing implementation paths and
-  commands.
-- Read [references/step-design.md](references/step-design.md) before choosing the final step boundaries.
+- Always read [references/plan-format.md](references/plan-format.md).
+- For a new plan, also read [references/project-analysis.md](references/project-analysis.md) and
+  [references/step-design.md](references/step-design.md).
 
-## Planning Procedure
+## Modes
 
-1. Extract `FR-`, `NFR-`, and `AC-` IDs, goals, scope, constraints, decisions, and references from the specification.
-   Stop when an in-scope item lacks a unique stable ID; do not invent plan-only IDs.
-2. Analyze the related project scope using the required project-analysis reference.
-3. Resolve repository facts through inspection. Return every remaining material unknown to the calling prompt and stop
-   before writing the final plan. Do not ask the user directly.
-4. Prefer coarse, coherent step boundaries. Assign stable step IDs and define dependencies by ID.
-5. You MUST map every in-scope requirement and acceptance ID through step `Requirements` fields or explicit ID prefixes
-   in the final Validation Checklist.
-6. Write the plan using the required format with repository-relative frontmatter `spec-file`. Tell the calling prompt to
-   store the reciprocal path in specification frontmatter `plan-file`.
-7. Write success criteria as independently provable outcomes. Split unrelated claims; when one criterion must contain
-   several clauses, make each clause and its evidence explicit.
-8. Choose evidence that checks the claimed behavior and could reveal its violation. Include a suitable negative or edge
-   scenario when the criterion covers a boundary or protective behavior.
-9. Start every success criterion unchecked. Execution prompts own verification status.
-10. Prefer verified file and symbol references over implementation snippets.
-11. Re-read the specification and confirm complete requirement coverage without extra behavior.
-12. Validate unique step IDs, traceability, numbering, dependencies, buildable boundaries, paths, commands, criteria,
-    risks, and the clean initial execution state.
+- **Metadata recovery:** require the specification's canonical `plan-file` to identify the existing plan; set only that
+  plan's `spec-file`, verify everything else byte-for-byte unchanged, and return. MUST NOT run planning.
+- **New plan:** require an absent target and run the procedure.
+
+## Procedure
+
+1. Extract goals, scope, constraints, decisions, references, and every `FR-`, `NFR-`, `AC-` ID. STOP if an in-scope item
+   lacks a unique stable ID; MUST NOT invent requirement IDs.
+2. Inspect relevant project scope with `project-analysis.md`; verify facts from the repository.
+3. Return material unknowns to the caller before writes. MUST NOT ask the user directly or save assumptions.
+4. Choose coarse coherent steps with `step-design.md`; assign stable IDs and earlier-ID dependencies.
+5. Map every in-scope requirement/acceptance ID through step `Requirements` or an ID-prefixed final validation item.
+6. Require reciprocal specification `plan-file`. Write only the new plan with `spec-file`; MUST NOT update the spec.
+7. Write independently provable Success Criteria. Split unrelated claims and include negative/edge evidence where a
+   boundary requires it. Start every checkbox unchecked.
+8. Prefer verified paths/symbols over snippets. Re-read the specification and plan; validate IDs, coverage,
+   dependencies, boundaries, paths, commands, risks, criteria, and absent execution records.
 
 ## Boundaries
 
-- Do not pad the plan with separate setup, verification, or documentation steps when those actions belong inside another
-  step.
-- Do not repeat the same file changes across steps without a real dependency.
-- Do not execute the plan.
-- Do not invent repository facts, paths, commands, or requirements.
-- You MUST NOT save a completed plan with a material unknown or assumption.
-- Do not create a plan from a description or source file without a governing specification.
-- Do not create Project Context or Requirement Coverage sections.
+- MUST NOT execute the plan or modify specification, code, or tests.
+- MUST NOT invent repository facts, commands, paths, dependencies, or requirements.
+- MUST NOT create separate setup/verification/docs steps when part of a coherent implementation step.
+- MUST NOT create Project Context or Requirement Coverage sections.
 
 ## Result
 
-Return the plan path, affected scope, derived requirement coverage, step count, resolved decisions, and the first
-executable step ID.
+Return plan path, scope, derived coverage, step count, resolved decisions, first executable step ID, and confirmation
+that execution state was not created. Metadata recovery reports only the backlink and preservation result.

@@ -1,49 +1,31 @@
 # Project Analysis for Planning
 
-Read this reference before choosing implementation steps for an existing specification.
+Inspect only the scope needed for an executable plan.
 
-## Establish Scope
+## Scope
 
-Classify the repository briefly:
+Classify briefly as new, existing, or monorepo. In a monorepo, identify the affected app/package/service first. Follow
+project instructions and user boundaries; MUST NOT scan unrelated areas for appearance of thoroughness.
 
-- **new**: little or no relevant implementation exists;
-- **existing**: the feature belongs to an established codebase;
-- **monorepo**: first identify the affected application, package, or service.
+## Inspection
 
-Respect project instructions and user-provided analysis boundaries. Do not scan unrelated areas merely to appear
-thorough.
+1. Read applicable project instructions and read-only Git status when available; preserve dirty user work.
+2. Identify relevant manifests, module boundaries, entry points, configuration, and build tooling.
+3. Trace current behavior through needed interfaces, callers, domain logic, storage/migrations, and integrations.
+4. Find analogous implementations and naming/error-handling conventions.
+5. Locate focused tests and broader required checks.
+6. Verify commands from configuration/docs; verify every existing path/symbol used by the plan and label future files.
 
-## Inspect Related Implementation
-
-For the affected scope:
-
-1. Read applicable project instructions.
-2. Inspect repository status with a read-only `git status` command when Git is available. Record only changes relevant
-   to planning; do not modify or clean the working tree.
-3. Identify manifests, module boundaries, entry points, configuration, and build tooling.
-4. Trace the current behavior through relevant interfaces, callers, domain logic, storage, migrations, and external
-   integrations.
-5. Find similar implementations and established naming or error-handling patterns.
-6. Locate focused tests and broader checks that cover the affected behavior.
-7. Verify commands from project configuration or documentation instead of guessing them.
-8. Verify every existing path or symbol referenced by the plan. Label future paths as files to create.
-
-For a new project, record required infrastructure as a prerequisite or planned action. Ask the user when its shape
-materially changes the plan. Do not invent existing conventions.
+For a new project, put required infrastructure in prerequisites or Actions. MUST NOT invent conventions.
 
 ## Feed the Plan
 
-Use verified evidence in the plan's Overview, Prerequisites, step Context, Actions, Success Criteria, Risks, and
-References. Do not create a separate Project Context section.
+Put verified evidence where used: approach in Overview; tools/environment in Prerequisites; paths/patterns in Context;
+commands in Actions/criteria; credible failures in Risks; useful sources in References. MUST NOT add a Project Context
+section or save uncertainty as an assumption.
 
-## Stop and Clarify
+## STOP and Clarify
 
-Ask for clarification when:
-
-- the affected monorepo component cannot be identified;
-- current behavior contradicts the specification;
-- a dirty working-tree change materially changes the intended plan;
-- different architectural choices would produce substantially different steps.
-
-Also ask when another material implementation decision cannot be resolved from the specification or established project
-conventions. Do not hide it as an assumption.
+STOP when the affected component is unknown, repository behavior contradicts the specification, dirty work materially
+changes the plan, or unresolved architectural choices produce materially different steps. Classify the owner and return
+the unknown to the caller.

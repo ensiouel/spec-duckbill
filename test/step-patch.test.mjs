@@ -124,6 +124,26 @@ test("rebuild replaces the same patch deterministically", (context) => {
     assert.deepEqual(second, first);
 });
 
+test("building one step patch preserves every other step patch", (context) => {
+    const repo = createRepo();
+    context.after(() => rmSync(repo, {recursive: true, force: true}));
+    const firstBase = snapshot(repo);
+    write(repo, "first-step.txt", "first\n");
+    const firstOutput = "specs/plans/demo/steps/first.patch";
+    assert.equal(build(repo, firstBase, firstOutput, ["specs/plans/demo/steps/*.patch"]).status, 0);
+    const firstPatch = readFileSync(join(repo, firstOutput));
+
+    const secondBase = snapshot(repo);
+    write(repo, "second-step.txt", "second\n");
+    const secondOutput = "specs/plans/demo/steps/second.patch";
+    assert.equal(build(repo, secondBase, secondOutput, ["specs/plans/demo/steps/*.patch"]).status, 0);
+
+    assert.deepEqual(readFileSync(join(repo, firstOutput)), firstPatch);
+    const secondPatch = readFileSync(join(repo, secondOutput), "utf8");
+    assert.match(secondPatch, /second-step\.txt/u);
+    assert.doesNotMatch(secondPatch, /first-step\.txt|first\.patch/u);
+});
+
 test("does not modify the real Git index", (context) => {
     const repo = createRepo();
     context.after(() => rmSync(repo, {recursive: true, force: true}));

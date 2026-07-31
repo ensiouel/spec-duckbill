@@ -1,125 +1,88 @@
 # Clarification Policy
 
-## Material Unknowns
+## Classification
 
-Classify an unknown by the artifact whose meaning would change. Do not classify it only by when the question was
-discovered.
+Classify an unknown by the artifact whose meaning would change, not where it was discovered.
 
-An unknown is material to a specification when different answers could change one or more of:
+| Class | Material when different answers change |
+|---|---|
+| specification | behavior/scope, acceptance or failure behavior, data lifecycle/compatibility, contracts, security, or affected application/module |
+| plan | architecture, paths/symbols, steps, dependencies, commands, rollout, risks, or implementation evidence |
 
-- user-visible behavior or scope;
-- acceptance criteria or failure behavior;
-- data ownership, persistence, migration, or compatibility;
-- API, event, file, or integration contracts;
-- authentication, authorization, privacy, or other security boundaries;
-- affected application or module.
-
-An unknown is material to a plan when different answers could change implementation architecture, step boundaries,
-dependencies, rollout, risk, paths, commands, or implementation criteria.
-
-Resolve specification unknowns before marking a specification ready. Implementation alternatives do not block the
-specification unless they also change its required behavior or constraints. Resolve plan unknowns before saving a
-completed plan.
+Specification unknowns block specification readiness. Plan-only alternatives do not. Both classes block plan readiness
+when they affect the plan.
 
 ## Investigate Before Asking
 
-First read user-provided context and inspect the permitted project scope.
+Read supplied context and inspect only permitted project scope:
 
-- For a specification question, use existing behavior, contracts, tests, configuration, documentation, and project
-  instructions to verify product and repository facts.
-- For a plan question, inspect the relevant architecture, modules, callers, tests, build tools, commands, and project
-  conventions needed to choose an executable approach.
+- specification facts: existing behavior, contracts, tests, configuration, docs, and project instructions;
+- plan facts: relevant architecture, modules, callers, tests, tools, commands, and conventions.
 
-Ask the user only for a decision, missing intent, inaccessible external fact, or choice that the repository cannot
-decide.
+Ask only for missing intent, a user decision, an inaccessible fact, or a choice the repository cannot decide. A common
+default is a recommendation, not permission to assume.
 
-## Question Style
+## Questions
 
-- Ask one to five related questions at a time.
-- Put the most blocking question first.
-- Make each question concrete and answerable.
-- When alternatives are known, give a short comparison and recommend one.
-- Show this legend once before the question batch:
-    - `[spec] answer updates the specification and synchronizes the plan`
-    - `[plan] answer updates only the plan`
-- Prefix every question with `[spec]` or `[plan]`.
-- Do not mix unrelated minor preferences into the same batch.
-- Preserve earlier answers and do not ask the same question again.
+- Ask 1–5 related, concrete questions; put the blocker first.
+- Prefix each with `[spec]` or `[plan]`; show the legend once.
+- Briefly compare and recommend among materially different known choices.
+- Preserve answers and MUST NOT repeat resolved questions.
+
+Normal form:
 
 ```text
-[spec] updates the specification and synchronizes the plan
+[spec] updates the specification; plan synchronization is manual
 [plan] updates only the plan
 
-1. [spec] Should recovery links be one-time?
-2. [plan] Where should the recovery service live?
+1. [spec] <question>
+2. [plan] <question>
 ```
 
-Pause after asking. Continue the workflow only after the user answers.
-
-## Phase Behavior
-
-While authoring or refining a specification:
-
-- ask `[spec]` questions that block specification readiness;
-- do not ask `[plan]` questions merely to make the later plan easier;
-- omit unresolved implementation alternatives from the specification instead of recording “chosen during planning.”
-
-While authoring or refining a plan:
-
-- ask `[spec]` when the implementation decision exposes missing or conflicting required behavior;
-- ask `[plan]` when the specification permits more than one materially different implementation;
-- resolve step boundaries, dependencies, paths, commands, rollout, risk mitigation, and success evidence before marking
-  the plan ready.
-
-Route a `[spec]` answer through the specification workflow and synchronize an existing plan afterward. Route a `[plan]`
-answer only through the plan workflow. The owning author or refiner skill applies artifact-specific formatting and
-content rules.
-
-## Conflicts with Recorded Decisions
-
-Apply an answer directly when it fills a missing decision. When it unexpectedly changes or contradicts an existing
-requirement or recorded plan decision:
-
-1. Name the affected `FR-`, `NFR-`, or `AC-` IDs, plan step IDs, or exact recorded decision.
-2. Summarize the current and proposed meaning in one short statement.
-3. Ask for confirmation before changing the artifact.
-
-Do not request this confirmation when the user's original request or feedback already explicitly asked for the change.
-
-Example:
+For a strict Duckbill footer, compress the blocker and pause:
 
 ```text
-FR-003: reusable recovery links -> one-time recovery links. Update the specification?
+Changed: none
+Status: blocked; material unknown: <concise question; optional related question>
+Next: none
 ```
 
-```text
-Step store-user: write through UserRepository -> write directly through the database client. Update the plan?
-```
+## Ownership
 
-## Readiness Gate
+During specification work, ask only `[spec]` questions needed for readiness and omit unresolved implementation
+alternatives. During plan work, resolve both missing specification intent and material implementation choices.
 
-A specification is ready for planning only when:
+An active command MAY apply only answers for the level it owns. Otherwise it MUST STOP without writes and route to the
+owning refinement command. Applying a specification answer never synchronizes a linked plan in the same command.
 
-- its goals, scope, non-goals, behavior, constraints, and acceptance expectations are consistent;
-- every in-scope requirement and acceptance criterion is testable and has a stable ID;
-- every normative behavior or constraint stated outside Requirements is represented by a stable requirement ID;
-- no material product, scope, contract, data, security, or acceptance decision remains unresolved;
-- its Technical Design passes the specification format and authoring rules;
-- no unresolved required behavior or constraint is expressed as alternatives deferred to planning;
-- assumptions do not hide a material decision;
-- conflicts with verified project behavior are resolved.
+Do not store undecided alternatives in a completed artifact. Put intentionally deferred product scope in specification
+Non-Goals and deferred implementation work in plan Out of Scope/future work.
 
-A plan is ready for execution only when:
+## Conflicts
 
-- the specification passes the readiness gate;
-- related project code and conventions have been investigated;
-- every in-scope requirement and acceptance ID is mapped to a step or final validation item;
-- implementation scope, approach, prerequisites, step boundaries, dependencies, actions, paths, commands, risks, and
-  success evidence are specific enough to execute;
-- referenced existing paths, symbols, and commands are verified, and future paths are identified as files to create;
-- no material implementation choice is deferred to execution as competing alternatives;
-- no material item remains under `Unknowns` or assumptions.
+When an answer unexpectedly contradicts recorded intent:
 
-An explicitly deferred idea is not an open question. Put deferred product scope in specification Non-Goals. Put deferred
-implementation work in plan Out of Scope or a clearly identified future-work note so it cannot silently affect the
-current artifact.
+1. identify affected requirement IDs, step IDs, or decision;
+2. summarize current → proposed meaning;
+3. confirm before changing it.
+
+Skip confirmation when the original feedback explicitly requested the change.
+
+## Readiness Gates
+
+A specification is ready only when:
+
+- goals, scope, non-goals, behavior, constraints, and acceptance agree;
+- each in-scope normative requirement/criterion is testable and has a stable ID;
+- Technical Design satisfies the specification format without plan-only detail;
+- no material product, contract, data, security, scope, or acceptance decision remains;
+- assumptions/alternatives do not hide required intent; verified project conflicts are resolved.
+
+A plan is ready only when:
+
+- the specification passes its gate;
+- relevant project code/conventions are inspected;
+- every in-scope requirement/acceptance ID is mapped to a step or final validation item;
+- scope, approach, prerequisites, steps, dependencies, actions, paths, commands, risks, and evidence are executable;
+- existing paths/symbols/commands are verified and future paths labeled;
+- no material implementation choice remains in alternatives, `Unknowns`, or assumptions.

@@ -1,38 +1,50 @@
 ---
-description: Develop an initialized specification draft into a complete technical specification
+description: Develop an initialized draft or restore its canonical plan link without creating a plan or code
 argument-hint: "<spec-file>"
 ---
 
-Develop this initialized specification:
-
-- Specification: `$1`
+Develop specification `$1`.
 
 Example: `/duck-spec specs/user-authentication.md`
 
+This command MAY change only the selected specification. It MUST NOT create plan intent, execution state, patches,
+tests, or implementation code.
+
+Output MUST be exactly three lines, in order, with nothing else:
+
+```text
+Changed: <changed file or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
+```
+
 Flow:
 
-1. If the path is empty, show `Usage: /duck-spec <spec-file>` with the example above and stop.
-2. Require a repository-relative path to an existing Markdown file and read it completely, including frontmatter and all
-   user-added sections.
-3. Require `status: draft`. When it is absent, stop and recommend `/duck-refine-spec` for an already developed
-   specification.
-4. Read the `## Description` section and other user notes. If the file contains no substantive input beyond the
-   `[WRITE HERE]` placeholder, ask the user to complete it and stop.
-5. Read applicable project instructions. Follow project-analysis scope and file references written by the user; inspect
-   additional context only when necessary to avoid an unsupported project fact.
-6. Load `duckbill-clarifier`. Identify material unknowns from the draft and inspected context, ask the user focused
-   questions, and pause. Repeat after each answer until its readiness gate passes. Keep `status: draft`; a temporary
-   `Open Questions` section is allowed while waiting.
-7. Load and follow `duckbill-spec-author` using the draft and resolved answers as the source of truth and the same file
-   as the target. If it returns a newly discovered material unknown, return to step 6.
-8. Preserve valid user intent and user-owned frontmatter, remove initialization guidance and the temporary `status`
-   field, and do not add frontmatter fields until a plan exists. Remove the frontmatter delimiters when no fields
-   remain.
-9. Re-read the saved specification. Require the spec author final check and the clarifier specification readiness gate
-    to pass. If either fails because of a material unknown, restore `status: draft`, ask the user, and continue
-    authoring after the answer. Otherwise report the exact format or verification failure.
-10. End with exactly three concise lines:
-    - `Changed: <changed paths or none>`
-    - `Status: <ready or blocked, with a short reason>`
-    - `Next: /duck-plan <specification path>` when ready, otherwise `Next: none` Add details only for unresolved
-      questions, blockers, or verification failures. Do not create a plan.
+1. Empty path: return `blocked; usage: /duck-spec <spec-file>` with `Changed: none` and `Next: none`.
+2. Require one existing repository-relative Markdown file; otherwise return `blocked` with no changes. Derive
+   `specs/plans/<name>/plan.md` from its filename.
+3. For an already-developed specification:
+   - missing or wrong `plan-file`: metadata-recovery mode MUST change only that field to the canonical path, verify all
+     other artifacts unchanged, and return `completed; canonical plan link restored`;
+   - canonical `plan-file`: return `unchanged; specification is already developed`.
+   In both cases use `Next: /duck-plan <spec-file>`; `/duck-plan` owns existing-plan routing. Do not author further.
+4. Otherwise require `status: draft` and substantive input beyond `[WRITE HERE]`. Missing input returns
+   `blocked; substantive specification input is required`, `Changed: none`, `Next: none`.
+5. Before writing, read applicable project instructions and only project context needed to verify specification facts.
+   Load `duckbill-clarifier`; ask only specification-level questions. Any material unknown MUST stop before writes with
+   `Status: blocked; material unknown: <concise clarification question>` and `Next: none`.
+6. Classify supplied technical detail by ownership. Keep it only when it is a required specification constraint or
+   high-level design decision. Files, symbols, libraries, algorithms, Actions, and internal code structure that affect
+   only implementation are plan intent and MUST NOT enter the specification.
+7. Load `duckbill-spec-author` in authoring mode. Write specification intent, remove draft guidance and `status`, and set
+   the canonical future `plan-file`. MUST NOT invoke `/duck-plan`.
+8. Re-read the file; require the author quality and readiness checks, stable requirement IDs, and unchanged plan/code.
+9. Success:
+
+```text
+Changed: <spec-file>
+Status: ready; specification intent verified
+Next: /duck-plan <spec-file>
+```
+
+Every blocked result MUST leave all files unchanged. Recommendations belong only in `Next` and never run automatically.

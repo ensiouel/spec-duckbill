@@ -1,54 +1,68 @@
 ---
-description: Refine an implementation plan, resolving new questions in the plan or governing specification before execution
+description: Refine plan intent and truthful execution state without changing specification or code
 argument-hint: "<plan-file>[#L<line>[-<end>]] <step|whole> <feedback>"
 ---
 
-Refine an implementation plan while keeping implementation code unchanged.
+Refine plan `$1`, target `$2`, from feedback `${@:3}`.
 
-- Plan reference: `$1`
-- Target: `$2`
-- Feedback: `${@:3}`
+Example: `/duck-refine-plan specs/plans/user-auth/plan.md hash-password Split hashing from registration`
 
-Examples:
+This command MAY change plan intent and the execution state needed to keep evidence truthful. It MUST preserve
+`spec-file` and MUST NOT change specification intent, implementation code, tests, configuration, or patches.
+
+Plan intent: implementation approach/scope, prerequisite text/order, steps, context, Actions, Success Criteria
+text/order, dependencies, mappings, validation definitions, risks, order, and structure. Execution state: their
+checkmarks plus step `Execution` fields and global `Base Tree`, `Current Step`, `Attempt`, `Patch`, `Patch Status`.
+
+Output MUST be exactly three lines, in order, with nothing else:
 
 ```text
-/duck-refine-plan specs/plans/user-auth/plan.md hash-password Split hashing from registration
-/duck-refine-plan specs/plans/user-auth/plan.md#L70-110 whole Reorder these steps by dependency
+Changed: <plan-file or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
 ```
 
 Flow:
 
-1. If the plan reference, target, or feedback is empty, show
-   `Usage: /duck-refine-plan <plan-file>[#L<line>[-<end>]] <step|whole> <feedback>` with the examples above and stop.
-2. Parse the plan reference as a canonical repository-relative path `specs/plans/<name>/plan.md`, optionally followed by
-   exactly `#L<line>` or `#L<start>-<end>`. Remove the optional line fragment to obtain the plan path and keep the
-   selection as initial feedback context. Stop on a missing path or invalid range.
-3. Validate and read the complete plan. Require repository-relative frontmatter `spec-file`. Read applicable project
-   instructions and the governing specification. Require a reciprocal frontmatter `plan-file`; stop on a missing or
-   conflicting link.
-4. Treat `whole` as whole-plan mode. Otherwise resolve the target by exact ID, number, or case-insensitive heading;
-   prefer ID. Use it as the primary focus. Change related plan content only when necessary to preserve valid
-   dependencies, mappings, criteria, or execution truth. The line selection highlights context but does not expand the
-   requested outcome.
-5. Read the selected plan lines when supplied. Then extract and read additional feedback references written as `path`,
-   `path#L<line>`, or `path#L<start>-<end>`. Do not interpret other line-reference formats. Stop on an invalid file or
-   range.
-6. Load `duckbill-clarifier`. Inspect the project first, ask about every material unknown introduced or exposed by the
-   feedback, and pause for answers.
-7. In `whole` mode, ask once for confirmation before saving only when the resolved change would invalidate executed work
-   or make current patch ownership ambiguous. Otherwise continue without confirmation.
-8. When an answer changes required behavior, scope, contracts, data, security, or acceptance, update the governing
-   specification through `duckbill-spec-refiner` first. Then load and follow `duckbill-plan-refiner` so the plan matches
-   it. Put implementation-only answers directly into the plan. If either refiner returns another material unknown,
-   return to step 6.
-9. Re-read both artifacts. When the specification changed, require the spec refiner final check to pass. In all cases,
-    require the plan refiner final validation and both clarifier readiness gates to pass. Verify reciprocal links.
-10. End with exactly three concise lines:
-    - `Changed: <changed paths or none>`
-    - `Status: <ready, blocked, or stale, with a short reason>`
-    - `Next: /duck-execute <plan path> <first affected step ID>` when unambiguous, otherwise `Next: none`
-      Add details only for unresolved questions, blockers, structural recovery choices, or verification failures.
+1. Missing argument: return `blocked; usage: /duck-refine-plan <plan-file> <step|whole> <feedback>` with
+   `Changed: none`, `Next: none`.
+2. Parse canonical `specs/plans/<name>/plan.md` plus optional exact line fragment. Read the full plan and referenced
+   context. Resolve target `whole` or one unique stable step ID, number, or heading. Invalid input returns `blocked`
+   with no changes.
+3. Read `spec-file`, its reciprocal `plan-file`, applicable instructions, and relevant implementation context. Both
+   links MUST be canonical and reciprocal. On failure return `blocked; reciprocal specification link is invalid`;
+   use `Next: /duck-spec <spec-file>` only when that existing specification has a missing/wrong `plan-file`, otherwise
+   `Next: none`. Refinement MUST NOT repair metadata. Record specification, code, tests, and patches before writes.
+4. Finish classification, permission checks, and clarification before mutation:
 
-Limit changes to the selected plan and, only when clarification changes the source of truth, the governing
-specification. Do not repair or migrate metadata implicitly or modify code. If feedback also requests code changes,
-finish the documents first and recommend `/duck-refine-code` or `/duck-execute`.
+| Feedback | Action | Status | Next |
+|---|---|---|---|
+| specification-level change | STOP | `blocked; requested change belongs in the specification` | `/duck-refine-spec <spec-file> <normalized feedback>` |
+| plan-level change or synchronization | continue | — | — |
+| code defect in one `completed` step, earlier execution work exists | STOP | `unchanged; earlier execution work takes precedence` | first earlier `/duck-execute` |
+| code defect in one `completed` step, no earlier work | STOP | `unchanged; plan intent is correct, completed implementation requires correction` | `/duck-refine-code <plan-file> <step-id> <normalized feedback>` |
+| material unknown or no unique owning step | STOP | `blocked; material unknown: <concise clarification question>` | `none` |
+
+   Execution work means new, unexecuted, `partial`, `failed`, or `stale`. With target `whole`, derive a unique code
+   owner from mappings and evidence or classify a material unknown.
+5. Load `duckbill-clarifier`, then `duckbill-plan-refiner` in read-only preflight. If a structural change would retire
+   `Current Step` while it owns a valid `Base Tree`, STOP before writes with
+   `blocked; current step patch ownership requires recovery: preserve one coherent outcome with the current ID or restore implementation to Base Tree`,
+   `Next: none`. Treat the specification as read-only truth when synchronizing.
+6. Apply the plan refinement. MUST preserve stable IDs for unchanged outcomes and create IDs for new outcomes. Determine
+   affected executed steps; mark each `stale`, uncheck only evidence invalidated by revised intent, and reset affected
+   prerequisite evidence. MUST NOT create Execution blocks for untouched steps, edit patches, or save `retired:` state.
+7. Re-read the plan. Validate links, IDs, dependencies, mappings, order, Actions, criteria, and truthful state. Verify
+   specification, code, tests, configuration, and patches unchanged.
+8. Select the result:
+
+| Outcome | Changed | Status | Next |
+|---|---|---|---|
+| plan changed; new/stale work | plan | `ready; execution required for <affected step IDs>` | first affected `/duck-execute` |
+| intent unchanged; execution work exists | none | `unchanged; plan intent is already correct` | first required `/duck-execute` |
+| intent unchanged; completed code defect | none | routed status above | `/duck-refine-code ...` |
+| intent unchanged; no pending work/defect | none | `unchanged; <completed result>` | `none` |
+
+Every STOP/blocked/routed result MUST leave all files and execution state unchanged. Routing invariant:
+`plan intent changed → /duck-execute`; `plan intent unchanged + code defect → /duck-refine-code`. Recommendations
+belong only in `Next` and never run automatically.

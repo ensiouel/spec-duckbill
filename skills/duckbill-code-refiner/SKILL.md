@@ -1,55 +1,44 @@
 ---
 name: duckbill-code-refiner
-description: Correct implementation code from user feedback while keeping the governing specification or plan unchanged. Use after a generated implementation is incomplete or wrong and the specification and plan still represent the intended behavior.
+description: Repair a completed step's implementation from feedback while preserving specification and plan intent; the caller may update execution state. Route new, partial, failed, or stale work to execution and higher-level feedback to its owning refinement command.
 ---
 
 # Duckbill Code Refiner
 
-Correct the implementation described by the supplied plan context and feedback.
-
-## Input
-
-Use the unchanged plan, selected or affected step context, current code, user feedback, and explicitly referenced file
-ranges supplied by the calling prompt.
+Correct a code defect already governed by unchanged specification and plan intent.
 
 ## Required Reference
 
-Read [references/feedback-guide.md](references/feedback-guide.md) before deciding whether feedback is code-only,
-validating the correction, and applying referenced-line feedback.
+Read [references/feedback-guide.md](references/feedback-guide.md) before classification or correction.
 
-## Refinement Procedure
+## Modes
 
-1. Translate the feedback into concrete implementation problems.
-2. Read the relevant requirement IDs, plan content, success criteria, referenced files, and current implementation.
-3. Confirm that the expected behavior already exists in the governing plan or specification.
-4. Prefer the smallest affected code area. Include related files when required for a correct build or behavior.
-5. Apply the correction. You MUST NOT modify plan or specification intent.
-6. Diagnose and fix failures directly caused by the correction.
-7. Re-evaluate and report every success criterion using the required guide.
-8. If all implementation steps would be completed by this correction, validate and report every final plan checklist
-   item using the required guide.
-9. Inspect the final diff.
+- **Preflight:** perform classification and read-only checks only. MUST NOT edit files or execution state.
+- **Correction:** enter only after the caller passes permissions/order/clarification and prepares an isolated baseline.
+
+## Procedure
+
+1. Apply the reference classification. Continue only for a defect in one `completed` step. Return already-satisfied
+   feedback unchanged; route other execution states or intent levels without writes.
+2. Read governing requirement IDs, step intent/evidence, feedback references, patch, and current implementation.
+3. Confirm the expected behavior is already required.
+4. Apply the smallest complete correction from the caller's baseline. Include related files only when required for
+   correct behavior/build. Diagnose failures caused by the repair.
+5. Re-evaluate every selected-step criterion in exact order. If this repair would complete all steps, also evaluate the
+   final Validation Checklist.
+6. Inspect the final diff and report current evidence.
 
 ## Boundaries
 
-- Do not modify the plan or specification.
-- Do not change requirement-to-step mappings during code-only refinement.
-- If the governing specification or plan does not yet reflect behavior requested by the feedback, stop and report that
-  it must be refined first.
-- Treat a referenced file as context. Modify it only when the selected step and requested correction require that
-  change.
-- Do not touch unrelated code.
-- Do not overwrite valid user changes merely to recreate a previous generation.
-- Do not preserve an old checked criterion when the corrected implementation no longer proves it.
+- MUST NOT modify specification intent or plan intent. The caller MAY persist execution state only.
+- MUST preserve approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies,
+  validation definitions, risks, structure, and mappings.
+- Higher-level or material-unknown feedback MUST STOP before all writes.
+- Referenced files are context, not edit permission. MUST NOT touch unrelated code or overwrite valid user changes.
+- MUST NOT preserve a checked criterion that current evidence no longer proves.
 
 ## Result
 
-Report:
-
-- the understood problem;
-- files changed;
-- checks performed;
-- exact ordered evidence for every selected-step success criterion;
-- final plan validation when this correction would complete every implementation step;
-- evidence for affected requirement coverage status;
-- confirmation that specification and plan intent were not modified.
+Return the defect, changed files, checks, exact ordered criterion evidence, optional final validation, requirement
+coverage, and confirmation that specification and plan intent were unchanged. The calling prompt owns execution-state
+writes, patch creation, strict footer, and `Next`.

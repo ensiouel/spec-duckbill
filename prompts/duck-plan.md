@@ -1,44 +1,60 @@
 ---
-description: Create an implementation plan from an existing specification
+description: Create plan intent from a ready specification without changing the specification or code
 argument-hint: "<spec-file>"
 ---
 
-Create an implementation plan from this specification:
-
-- Specification: `$1`
+Create a plan from specification `$1`.
 
 Example: `/duck-plan specs/user-auth.md`
 
+This command MAY change only the plan level. Specification intent and implementation code are read-only.
+
+Output MUST be exactly three lines, in order, with nothing else:
+
+```text
+Changed: <changed plan or none>
+Status: <result and reason>
+Next: <one exact Duckbill command or none>
+```
+
 Flow:
 
-1. If the path is empty, show `Usage: /duck-plan <spec-file>` with the example above and stop.
-2. Require a repository-relative path to an existing specification. Reject descriptions and line fragments.
-3. Read the complete specification and applicable project instructions. For `status: draft`, stop and recommend
-   `/duck-spec <spec-file>`. Load `duckbill-clarifier` and require its specification readiness gate to pass; otherwise
-   stop and recommend `/duck-refine-spec`.
-4. Resolve the target plan:
-    - when specification frontmatter contains `plan-file`, require the canonical repository-relative path
-      `specs/plans/<name>/plan.md`, validate it, and use it;
-    - otherwise derive `specs/plans/<name>/plan.md` and create its parent directory when saving;
-    - if the plan exists and has `Execution State`, any step `Execution` block, or any existing step patch, stop without
-      changes and recommend `/duck-refine-plan <plan-file> whole <feedback>`;
-    - otherwise confirm replacement before overwriting the untouched plan.
-5. Load `duckbill-plan-author` to analyze the related project and draft the implementation approach. Collect any
-   material unknowns it returns.
-6. Use `duckbill-clarifier` before saving. Investigate repository facts first, then ask the user about every material
-   unknown. Show its short `[spec]` and `[plan]` legend once and tag every question. Pause for answers and repeat until
-   both specification and plan readiness gates pass.
-7. Apply answers about required behavior, scope, contracts, data, security, or acceptance to the specification first
-   through `duckbill-spec-refiner`. Apply implementation-only answers to the plan. Re-run `duckbill-plan-author` after
-   the answers; if either skill discovers another material unknown, return to step 6.
-8. Finish and save the plan with repository-relative `spec-file: <spec-file>` as its only managed frontmatter field.
-   Update specification frontmatter with `plan-file: <plan-file>` as its only managed field. Do not duplicate either
-   link in References.
-9. Re-read both files. Require the plan author final validation and both clarifier readiness gates to pass. Verify the
-    reciprocal links.
-10. End with exactly three concise lines:
-    - `Changed: <changed paths or none>`
-    - `Status: <ready or blocked, with a short reason>`
-    - `Next: /duck-execute <plan path> <first executable step ID>` when unambiguous, otherwise `Next: none`
-      When planning answers changed the specification, name the changed requirement IDs in `Status`. Add details only
-      for unresolved questions, blockers, or verification failures. Do not execute a step.
+1. Empty path: return `blocked; usage: /duck-plan <spec-file>` with `Changed: none`, `Next: none`.
+2. Require an existing repository-relative specification with no line fragment. Read it and applicable project
+   instructions. Invalid input returns `blocked` with no changes. A draft returns
+   `blocked; specification draft is incomplete` and `Next: /duck-spec <spec-file>`.
+3. Load `duckbill-clarifier` and apply the specification readiness gate. Incomplete or contradictory specification
+   intent returns `blocked; specification intent is not ready` and
+   `Next: /duck-refine-spec <spec-file> <normalized feedback>` without writes.
+4. Derive `specs/plans/<name>/plan.md`. Before writing, require specification `plan-file` to equal it. Otherwise return
+   `blocked; specification plan-file is missing or noncanonical` and `Next: /duck-spec <spec-file>`.
+5. If the plan exists, MUST NOT overwrite plan intent or execution state. Validate it read-only, except:
+   - invalid/missing `spec-file` backlink: metadata-recovery mode MAY set only `spec-file: <spec-file>`, then return
+     `completed; reciprocal specification link restored`;
+   - valid, synchronized, executable: return `unchanged; existing plan is executable` and the first exact
+     `/duck-execute` command;
+   - valid, synchronized, completed: return `unchanged; existing plan is completed`, `Next: none`;
+   - otherwise: return `unchanged; existing plan requires synchronization` and
+     `Next: /duck-refine-plan <plan-file> whole Synchronize with the current specification`.
+   After backlink recovery, select `Next` by the same synchronized/executable rules. Do not continue to authoring.
+6. For a new plan, record the specification and implementation tree, load `duckbill-plan-author`, and inspect the
+   project. Resolve unknowns through `duckbill-clarifier` before writes:
+
+| Unknown | Status | Next |
+|---|---|---|
+| specification-level | `blocked; specification intent is incomplete` | `/duck-refine-spec <spec-file> <normalized feedback>` |
+| plan-level | `blocked; material unknown: <concise clarification question>` | `none` |
+
+7. Write only the new plan with reciprocal `spec-file`. A new plan MUST have unchecked evidence and MUST NOT contain
+   `Execution State` or per-step `Execution` blocks. MUST NOT edit the specification, code, or execute a step.
+8. Re-read it and validate reciprocal links, stable IDs, mappings, dependencies, Actions, Success Criteria, commands,
+   and clean lazy execution state. Verify specification and implementation unchanged.
+9. Success:
+
+```text
+Changed: <plan-file>
+Status: ready; plan intent verified and execution state not created
+Next: /duck-execute <plan-file> <first executable step ID>
+```
+
+Every blocked result MUST leave all files unchanged. Recommendations belong only in `Next`; they never run automatically.

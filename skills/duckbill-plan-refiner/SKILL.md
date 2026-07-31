@@ -1,58 +1,44 @@
 ---
 name: duckbill-plan-refiner
-description: Refine an existing implementation plan from user feedback or synchronize it with an updated specification without changing the specification or source code. Use for focused step changes or whole-plan updates, including splitting, merging, adding, removing, or reordering steps.
+description: Refine an existing plan or synchronize it with an updated specification without changing specification or code. Use for plan approach/scope, prerequisites, steps, context, actions, criteria, dependencies, mappings, validation, risks, ordering, or structure.
 ---
 
 # Duckbill Plan Refiner
 
-Update one implementation plan while preserving a coherent, executable sequence.
+Update one plan while preserving an executable sequence and truthful evidence.
 
-## Input
-
-Use the complete plan, governing specification identified by plan frontmatter `spec-file`, its reciprocal specification
-frontmatter `plan-file`, optional target step, feedback, explicitly referenced file ranges, and project instructions
-supplied by the calling prompt. Treat the target as the primary focus. Update related plan content only when required to
-keep dependencies, mappings, criteria, or execution state coherent.
+This skill MAY update plan intent and required execution state in the selected plan. It MUST preserve `spec-file` and
+MUST NOT change specification intent, patches, or implementation code.
 
 ## Required Reference
 
-Read [references/refinement-guide.md](references/refinement-guide.md) before changing step structure, criteria,
-dependencies, or execution state.
+Read [references/refinement-guide.md](references/refinement-guide.md) before changing structure, criteria, dependencies,
+mappings, or execution state.
 
-## Refinement Procedure
+## Procedure
 
-1. Understand the requested change and compare the plan with its governing specification.
-2. Inspect referenced project files only when needed to verify facts or current conventions.
-3. When the change exposes a material unknown, return it to the calling prompt and stop before saving. Classify whether
-   the answer belongs in the specification or plan; do not ask the user directly.
-4. Select the smallest correct refinement operation using the required guide.
-5. Update the affected plan content. Rewrite, split, merge, add, remove, or reorder steps when required. Preserve stable
-   IDs for unchanged outcomes.
-6. Update stable IDs, step-level requirement mappings, numbering, ID-based dependencies, context references, actions,
-   success criteria, risks, and ID-prefixed validation items affected by the change.
-7. Derive requirement coverage from step `Requirements` fields and the Validation Checklist; do not add a Requirement
-   Coverage table.
-8. Reset changed success criteria to `[ ]`. An affected existing Execution block MUST become `Status: stale` when its
-   previous evidence no longer proves the revised step. You MUST NOT add an Execution block to an unexecuted step. Reset
-   every `Validation Checklist` item that could be invalidated by the refinement; reset the whole checklist when
-   requirements, steps, dependencies, or cross-step behavior change. When `Execution State` exists and refinement
-   affects `Current Step`, you MUST preserve its `Base Tree` and set `Patch Status` to `stale`.
-9. Preserve valid unrelated steps and their verified execution state. Keep Execution State absent when no step has been
-   executed.
-10. Re-read the plan and check unique step IDs, derived requirement coverage, dependencies, references, step boundaries,
-    criteria, execution truth, and clarification readiness.
+1. Classify before writes. Route specification changes upward. If intent is unchanged and one `completed` step owns a
+   code defect, route earlier execution work to `/duck-execute`, otherwise the defect to `/duck-refine-code`.
+2. Compare every proposed plan change with the read-only governing specification. Inspect project files only to verify
+   relevant facts/conventions.
+3. Return material unknowns to the caller before saving; MUST NOT ask directly or partially update state.
+4. Select the smallest correct operation from the reference. A change that would retire Current Step while it owns a
+   valid Base Tree MUST STOP for patch-ownership recovery.
+5. Update affected intent, stable IDs, ID dependencies/mappings, context, Actions, criteria, validation, and risks.
+6. Keep execution evidence truthful: reset invalidated checkmarks, mark affected executed steps `stale`, and preserve
+   unrelated state. MUST NOT add Execution to an untouched step. If Current Step intent changes, preserve Base Tree and
+   set Patch Status `stale`.
+7. Re-read and validate links, IDs, derived coverage, dependencies, boundaries, criteria, and execution truth.
 
 ## Boundaries
 
-- Do not modify any artifact except the selected implementation plan.
-- Preserve `spec-file` and reciprocal `plan-file`. Do not migrate missing or old metadata. Relink only with explicit
-  user confirmation.
-- Treat referenced files as read-only context unless they are the selected plan.
-- Treat the specification as the source of truth when synchronizing.
-- Report a conflict instead of silently weakening a specification requirement.
-- Do not complete a plan with a material unknown or assumption.
+- MAY modify only the selected plan. Referenced files and governing specification are read-only.
+- MUST NOT invoke other workflow levels, repair reciprocal links, edit/regenerate patches, or weaken a requirement.
+- Invalid links, specification feedback, code defects, material unknowns, and patch-ownership conflicts MUST STOP before
+  all writes.
+- MUST NOT save assumptions or add a Requirement Coverage table.
 
 ## Result
 
-Report preserved, added, retired, and stale step IDs; requirement mappings; structural changes; and steps needing
-implementation or re-execution.
+Return preserved/added/retired/stale IDs, mappings, structural changes, and work requiring execution. Plan changes route
+to the first manual `/duck-execute`; unchanged intent plus a completed code defect routes to `/duck-refine-code`.

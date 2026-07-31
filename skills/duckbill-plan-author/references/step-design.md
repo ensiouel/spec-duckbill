@@ -1,97 +1,36 @@
 # Step Design Guide
 
-Read this reference when choosing, splitting, merging, or validating implementation steps.
+## Coherent Boundaries
 
-## Choose Coherent Boundaries
+A step is one meaningful implementation outcome, not one file, activity, or time estimate. Prefer a boundary that is
+buildable when practical, independently testable, has one reason to exist, updates breaking interfaces with callers,
+and gives later steps an observable dependency.
 
-A step is a meaningful implementation outcome, not a time estimate or a single edit. It may touch several files when
-those changes must land together.
+MUST NOT create separate steps for a command, tests/docs belonging to an implementation change, each file in one
+feature, or speculative behavior absent from the specification.
 
-Prefer a boundary where:
+Typical upper bounds (not targets): trivial 1; small 1–2; medium 2–4; large 4–8; very large 8–15. More than 15 coherent
+steps usually needs multiple related plans. Prefer the smaller viable split.
 
-- the project remains buildable when practical;
-- a new behavior can be validated;
-- breaking interface changes and their callers are updated together;
-- the step has one clear reason to exist;
-- later steps depend on an observable result.
-
-Do not create separate steps for:
-
-- one command without meaningful implementation work;
-- verification already covered by the preceding step's criteria;
-- mechanical documentation that belongs with an implementation change;
-- each file in a single coherent feature;
-- speculative edge cases unsupported by the specification.
-
-## Size Guide
-
-These are upper bounds, not targets.
-
-| Task size  | Typical work                                               | Steps |
-|------------|------------------------------------------------------------|-------|
-| Trivial    | Configuration tweak, one-function fix                      | 1     |
-| Small      | Local feature, endpoint, small refactor                    | 1-2   |
-| Medium     | Module or multi-file feature using existing infrastructure | 2-4   |
-| Large      | New subsystem or cross-layer change                        | 4-8   |
-| Very large | Major service or multi-subsystem rewrite                   | 8-15  |
-
-If more than fifteen useful steps are needed, split the work into related plans. When uncertain between two sizes, start
-with the smaller one. A large step can later be refined; a plan full of microsteps is harder to understand and maintain.
-
-## Good and Bad Splits
-
-Bad:
+Boundary example:
 
 ```text
-Step 1: Create PasswordHasher file
-Step 2: Add hash method
-Step 3: Add tests
-Step 4: Connect it to registration
+Good: Introduce and verify the password hashing service
+      Integrate it into registration (depends on the first step)
+
+Bad:  Create file → add method → add tests → connect registration
 ```
 
-This separates one small behavior by file and activity.
+The bad split separates one capability by file/activity. Likewise, update a breaking interface and all current callers
+in one step unless an unavoidable external operation requires an explicit non-buildable boundary.
 
-Better:
+## Dependencies
 
-```text
-Step 1: Introduce and verify the password hashing service
-Step 2: Integrate password hashing into registration
-```
-
-The first step produces a tested reusable capability. The second changes registration behavior and can depend on it.
-
-Bad:
-
-```text
-Step 1: Change UserService.findById return type
-Step 2: Fix broken callers
-```
-
-Step 1 deliberately leaves the build broken.
-
-Better:
-
-```text
-Step 1: Change UserService.findById and update all current callers
-```
-
-An intermediate non-buildable state is acceptable only when an external operation such as code generation or a database
-migration makes it unavoidable. State the reason and dependency explicitly.
-
-## Dependency Check
-
-- Reference only earlier stable step IDs.
-- Use `none` when there is no dependency.
-- Avoid cycles.
-- Do not add a dependency merely because another step appears earlier.
-- If two steps edit the same concern, merge them unless a real intermediate result separates them.
+- Reference only earlier stable step IDs; use `none` when absent.
+- MUST NOT create cycles or dependencies based only on display order.
+- Merge steps that repeatedly edit one concern unless a real intermediate outcome separates them.
 
 ## Final Check
 
-Before accepting the step structure, confirm:
-
-- every step has a distinct outcome;
-- no step exists only to make the plan look detailed;
-- no breaking change is deferred to a later repair step;
-- each criterion verifies the selected step rather than future work;
-- step order follows actual dependencies.
+Every step MUST have a distinct outcome; no step exists for cosmetic detail; no breaking change is deferred to repair;
+criteria verify this step rather than future work; and order follows actual dependencies.

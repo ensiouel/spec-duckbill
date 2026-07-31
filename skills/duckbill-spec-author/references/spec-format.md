@@ -1,26 +1,25 @@
 # Specification Format
 
-Read this reference whenever creating or substantially rewriting a specification.
+Use for specification authoring or substantial specification refinement.
 
-## Complete Structure
+## Document Template
 
-Use this order. Omit an optional subsection only when it does not apply. Keep the main sections explicit so the document
-remains predictable.
+Keep this order. Omit optional sections when irrelevant.
 
 ```markdown
 ---
 plan-file: specs/plans/<name>/plan.md
 ---
 
-# <Feature or Project Name>
+# <Name>
 
 ## Overview
 
-<What is being proposed, for whom, and why.>
+<Proposal, audience, reason.>
 
 ## Background
 
-<Relevant current behavior, motivation, and verified project context.>
+<Relevant verified context.> <!-- optional -->
 
 ## Goals
 
@@ -28,182 +27,104 @@ plan-file: specs/plans/<name>/plan.md
 
 ## Non-Goals
 
-- <Related work intentionally excluded>
+- <Excluded related work>
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001:** <Required behavior, input, output, or failure behavior.>
+- **FR-001:** <Required behavior or failure behavior.>
 
 ### Non-Functional Requirements
 
-- **NFR-001:** <Measurable quality, compatibility, accessibility, reliability, or operational constraint.>
+- **NFR-001:** <Measurable constraint.>
 
 ## Technical Design
 
-<A high-level design showing how the system is divided and how the required behavior flows through it. Include exact
-implementation details only when explicitly supplied in the draft, refinement feedback, or a specification-scoped
-clarification answer.>
-
-### Application Architecture
-
-<Important components, boundaries, responsibilities, and flow.>
-
-### Configuration
-
-<Runtime configuration and defaults when relevant.>
-
-### Styling and Assets
-
-<UI styling and asset decisions when relevant.>
-
-### Operational Behavior
-
-<Startup, shutdown, logging, failure, deployment, or maintenance behavior when relevant.>
+<High-level components, boundaries, responsibilities, and flow.>
 
 ## Data Models
 
-<Entities, fields, lifecycle, ownership, or a clear statement that no persistent model is needed.>
+<Data lifecycle and ownership.> <!-- optional -->
 
 ## Interfaces
 
-### <Interface Name>
+### <Interface>
 
-<HTTP, command, event, file, or internal contract when relevant.>
+<Contract.> <!-- optional -->
 
 ## Security Considerations
 
-<Authentication, authorization, secrets, sensitive data, escaping, abuse, and audit concerns.>
+<Security boundaries.> <!-- optional -->
 
 ## Testing Strategy
 
-- <How important behavior and constraints will be verified.>
+- <How behavior and constraints will be verified.>
 
 ## Acceptance Criteria
 
-- **AC-001:** <Observable condition proving the feature is ready.>
+- **AC-001:** <Observable completion condition.>
 
 ## References
 
-- <Repository path, user source, or authoritative external documentation.>
+- <Repository or authoritative source.>
 ```
+
+Required sections: Overview, Goals, Non-Goals, Requirements with both subsections, Technical Design, Testing Strategy,
+Acceptance Criteria, References. Use Background, Data Models, Interfaces, Security, Configuration, Styling/Assets, or
+Operational Behavior only when relevant. A short “not applicable” is useful when absence is an important fact.
 
 ## Frontmatter
 
-- An initialized draft contains only temporary `status: draft`.
-- Remove `status` after the specification passes the clarification readiness gate. Remove the frontmatter delimiters
-  when no fields remain.
-- Add repository-relative `plan-file` only after that plan exists. Omit it before planning.
-- Preserve additional valid user fields.
-- Never duplicate `plan-file` in the Markdown References section.
+- An initialized draft has only `status: draft` plus preserved user fields.
+- After readiness, remove `status` and add canonical repository-relative
+  `plan-file: specs/plans/<name>/plan.md`; the plan need not exist.
+- `/duck-refine-spec` MUST preserve `plan-file`. Invalid specification metadata routes to `/duck-spec`; an invalid
+  linked plan backlink routes to `/duck-plan`. Refiners MUST NOT repair links.
+- MUST NOT duplicate `plan-file` in References.
 
-## Section Rules
+## Intent Boundary
 
-Always include:
+Specification intent owns scope, required behavior/constraints, contracts/interfaces, data behavior, security,
+acceptance, and high-level design. It MUST NOT contain plan Actions, Success Criteria, dependencies, mappings,
+execution state, patches, or code.
 
-- Overview
-- Goals
-- Non-Goals
-- Requirements with Functional and Non-Functional subsections
-- Technical Design
-- Testing Strategy
-- Acceptance Criteria
-- References
+Technical Design is always present and explains components, boundaries, responsibilities, and flow. A supplied exact
+technical detail belongs here only when user intent makes it a required compatibility, security, operational, contract,
+or high-level design constraint. Files, symbols, API methods, wrapper layers, algorithms, discretionary libraries, and
+internal code structure are plan intent. Clarify ambiguous ownership before writes.
 
-Always include Technical Design. Keep it at the level of components, boundaries, responsibilities, data or request flow,
-and operational behavior needed to explain how the requirements fit together. The author may derive this high-level
-design from the requirements and verified project facts.
+A specification change MUST NOT edit/synchronize a linked plan or mark steps `stale`; report changed requirement IDs
+for later manual `/duck-refine-plan`.
 
-Include exact implementation details only when the user explicitly supplied them in the draft, refinement feedback, or a
-specification-scoped clarification answer. Exact details include specific libraries, files, symbols, API methods,
-wrapper layers, algorithms, and internal code structure. Do not infer or select such details merely from repository
-conventions. Preserve explicitly supplied details.
+## Stable Normative IDs
 
-Use Background, Data Models, Interfaces, and Security Considerations when relevant.
+- Use unique `FR-###`, `NFR-###`, and `AC-###` IDs.
+- Preserve an ID when meaning is unchanged; assign a new ID to new meaning; never reuse a removed ID.
+- Requirements describe observable behavior/constraints, not implementation tasks.
+- Every normative behavior or constraint MUST appear under Requirements with an ID. Other sections MAY explain it but
+  MUST NOT be its only source.
+- Use `MUST`, `SHOULD`, and `MAY` only when obligation benefits from being explicit.
 
-A short explicit “not applicable” statement is useful when absence is an important design fact, such as no persistence
-or authentication.
+Good: `FR-002: The system MUST reject registration without persisting the user when hashing fails.`
 
-An `Open Questions` section may be used temporarily while drafting. Resolve every in-scope question and remove the
-section before completing the specification. Move intentionally deferred work to Non-Goals instead of leaving it
-unresolved.
-
-## Stable IDs
-
-Write requirements as concise bullets with stable IDs:
-
-- `FR-001`, `FR-002`, and so on for functional requirements;
-- `NFR-001`, `NFR-002`, and so on for non-functional requirements;
-- `AC-001`, `AC-002`, and so on for acceptance criteria.
-
-Keep an ID when refining the same meaning. Assign a new ID for new meaning. Never reuse a removed ID for something
-different.
-
-Requirements describe observable behavior and constraints, not implementation tasks.
-
-Every normative statement belongs under Requirements and receives a stable ID. A Technical Design, Data Models,
-Interfaces, Security Considerations, or Operational Behavior section may explain or contextualize that requirement, but
-MUST NOT be the only place that introduces mandatory or recommended behavior. Treat `MUST`, `SHOULD`, `MAY`, “must not”,
-“should”, and equivalent wording as normative.
-
-Good:
-
-```markdown
-- **FR-002:** The system MUST store only a one-way password hash and MUST reject registration without persisting the
-  user when hashing fails.
-```
-
-Bad:
-
-```markdown
-- **FR-002:** Create `PasswordHasher`, call bcrypt, and update three source files.
-```
-
-Use these terms only when obligation benefits from being explicit:
-
-- `MUST` means the requirement is mandatory.
-- `SHOULD` means it is expected unless a documented reason justifies another choice.
-- `MAY` means it is optional.
-
-Do not force these terms into descriptive sections.
+Bad: `FR-002: Create PasswordHasher, call bcrypt, and update three files.`
 
 ## Resolved Decisions
 
-A completed specification must not present unresolved alternatives for required behavior or constraints.
+A ready specification MUST NOT defer unresolved required behavior or constraints as alternatives. If alternatives
+change observable intent, clarify and choose. If they are implementation-only, state the invariant and omit them.
+Intentional accepted alternatives (for example, two supported input formats) are allowed.
 
-Bad:
-
-```markdown
-The server reads posts on startup or uses a reload strategy chosen during planning.
-```
-
-If reloading changes observable behavior, clarify and record one required behavior. If the difference is
-implementation-only, state the invariant requirement and omit the alternatives:
-
-```markdown
-The server MUST make valid posts from the configured content directory available through public routes.
-```
-
-The plan may then choose when and how to load them. The word “or” is allowed when the alternatives themselves are
-intentional accepted behavior, such as accepting either of two documented input formats. It must not defer an undecided
-requirement to planning.
+Temporary `Open Questions` MAY exist while drafting, but MUST be resolved and removed before readiness. Move deferred
+product scope to Non-Goals.
 
 ## Quality Check
 
-Before saving, confirm:
-
-- every goal is supported by one or more requirements;
-- every requirement is in scope, testable, and uniquely identified;
-- every normative statement outside Requirements is represented by an `FR-` or `NFR-` ID;
-- acceptance criteria prove the intended user or developer outcome;
-- non-goals do not contradict requirements;
-- technical design supports rather than expands required behavior;
-- Technical Design is present and stays at a high level where exact implementation details were not explicitly supplied;
-- every exact implementation detail in Technical Design is traceable to the draft, refinement feedback, or a
-  specification-scoped clarification answer;
-- no unresolved behavioral or constraint alternative is deferred to planning;
-- interfaces, data, operations, security, and testing agree;
-- no assumption hides an in-scope decision;
-- no `Open Questions` section remains;
-- repository facts and references were verified.
+- Goals are covered by in-scope, testable, unique requirements; acceptance criteria prove the intended outcome.
+- Non-goals, requirements, design, interfaces, data, operations, security, testing, and references agree.
+- Every normative statement maps to an `FR`/`NFR`; stable IDs and user intent are preserved.
+- Technical Design supports but does not expand requirements and contains no discretionary plan detail.
+- No material decision is hidden in assumptions, alternatives, or Open Questions.
+- Repository facts/references are verified.
+- No plan intent, execution state, patch, or implementation code was introduced.
