@@ -20,11 +20,12 @@ Next: <one exact Duckbill command or none>
 
 ## Isolation invariant
 
-Resolve `../scripts/state.mjs` relative to this prompt as the deterministic state CLI.
+Load `duckbill-state` independently and use only its bundled deterministic CLI for workflow-state operations.
 
-This command is the sole orchestrator. Load every skill independently. A semantic worker receives only canonical
-specification/project files and resolved user input: the original request plus direct user answers, without another
-skill's analysis, report, or workflow state. Initialize state only after plan validation.
+This command is the sole orchestrator. Load every skill independently. The state adapter receives only typed operation
+arguments. A semantic worker receives only canonical specification/project files and resolved user input: the original
+request plus direct user answers, without another skill's analysis, report, or workflow state. Initialize state only
+after plan validation.
 
 ## Flow
 

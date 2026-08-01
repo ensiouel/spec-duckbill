@@ -15,7 +15,9 @@ action, and stops. The user starts every transition; recommendations never run a
 pi install https://github.com/ensiouel/spec-duckbill
 ```
 
-For local development: `pi install .`
+For a project-local install use `pi install -l https://github.com/ensiouel/spec-duckbill`. For local development use
+`pi install .`. Install the repository as one Pi package; copying individual `skills/duckbill-*` directories is not a
+supported Duckbill installation because the commands and state runtime are package resources.
 
 Requirements: Pi, Node.js 20+, and Git. Keep plan-local `state.json` tracked in Git.
 
@@ -69,8 +71,9 @@ Normal orchestration uses six operations:
 read -> init | record | begin -> finish | sync-plan
 ```
 
-Commands invoke `scripts/state.mjs` directly with `--plan <plan-file>` and `--repo <repository-root>` plus the explicit
-IDs, mode, outcome, scope, affected IDs, or evidence required by that operation.
+Commands load `duckbill-state` independently and invoke its bundled `scripts/state.mjs` with `--plan <plan-file>` and
+`--repo <repository-root>` plus the explicit IDs, mode, outcome, scope, affected IDs, or evidence required by that
+operation.
 
 - `read` returns a compact summary and, when requested, one step's evidence. Write operations return small receipts,
   not the complete state object.
@@ -97,8 +100,9 @@ Commands orchestrate; skills do not form a call graph.
 - A skill never invokes, imports, reads, or names another skill.
 - A semantic worker receives canonical project artifacts and resolved user input, not another worker's report or state.
 - Orchestration owns routing and normalizes proven evidence.
-- The state CLI is ordinary code, not a semantic skill. It accepts only explicit paths, IDs, modes, outcomes, and
-  complete evidence records.
+- `duckbill-state` is a self-contained operational adapter. Its state CLI is ordinary code that accepts only explicit
+  paths, IDs, modes, outcomes, and complete evidence records; the adapter makes no semantic decision and returns
+  nothing to another skill.
 
 A new AI session recovers by reading the specification, plan, and compact state summary rather than reconstructing
 progress from chat history.
@@ -130,10 +134,11 @@ unknown-version files.
 
 ```bash
 node --test test/init-spec.test.mjs
+node --test test/package-install.test.mjs
 node --test test/skill-isolation.test.mjs
 node --test test/state-inspection.test.mjs
 node --test test/workflow-contract.test.mjs
-node --check scripts/state.mjs
+node --check skills/duckbill-state/scripts/state.mjs
 node --check skills/duckbill-spec-author/scripts/init-spec.mjs
 ```
 

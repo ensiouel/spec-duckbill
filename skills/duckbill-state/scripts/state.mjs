@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// Deterministic runtime for the duckbill-state skill.
+
 import {createHash, randomBytes} from "node:crypto";
 import {
     closeSync,

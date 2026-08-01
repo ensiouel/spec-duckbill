@@ -15,7 +15,8 @@ const paths = {
     planRefiner: "skills/duckbill-plan-refiner/SKILL.md",
     executor: "skills/duckbill-step-executor/SKILL.md",
     codeRefiner: "skills/duckbill-code-refiner/SKILL.md",
-    stateCli: "scripts/state.mjs",
+    stateSkill: "skills/duckbill-state/SKILL.md",
+    stateCli: "skills/duckbill-state/scripts/state.mjs",
     executionReport: "skills/duckbill-step-executor/references/execution-report.md",
     clarifierPolicy: "skills/duckbill-clarifier/references/clarification-policy.md",
     planFormat: "skills/duckbill-plan-author/references/plan-format.md",
@@ -75,9 +76,17 @@ test("plan creation initializes state only after plan validation", () => {
 test("normal state API is a small sequential protocol", () => {
     includesAll("readme", ["`read`", "`init`", "`record`", "`begin`", "`finish`", "`sync-plan`"]);
     matchesAll("readme", [/single writer/i, /no state revisions, locks, event logs, baselines/i, /state CLI is ordinary code/i]);
-    assert.equal(existsSync(resolve("skills/duckbill-state/SKILL.md")), false);
+    assert.equal(existsSync(resolve(paths.stateSkill)), true);
+    matchesAll("stateSkill", [/bundled CLI as the only interface/i, /MUST NOT infer semantic evidence, affected IDs, ownership, routing/i]);
     assert.match(read("stateCli"), /usage: state\.mjs read\|init\|sync-plan\|record\|begin\|finish/u);
     assert.doesNotMatch(read("stateCli"), /expected-revision|begin-attempt|finish-attempt|build-patch|reconcile-plan/u);
+});
+
+test("stateful commands load the state adapter without sharing it with semantic workers", () => {
+    for (const name of ["plan", "refinePlan", "execute", "refineCode"]) {
+        matchesAll(name, [/Load `duckbill-state` independently/i, /bundled deterministic CLI/i]);
+    }
+    matchesAll("stateSkill", [/MUST NOT invoke or return data to another skill/i, /calling command supplies explicit typed arguments/i]);
 });
 
 test("execution and repair use begin, finish, and stable evidence IDs", () => {

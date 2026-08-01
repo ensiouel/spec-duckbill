@@ -1,0 +1,28 @@
+{
+  "name": "spec-duckbill",
+  "version": "0.1.0",
+  "description": "A compact spec-driven development workflow for Pi",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "pi-package",
+    "spec-driven-development"
+  ],
+  "files": [
+    "prompts",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "prompts": [
+      "./prompts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}

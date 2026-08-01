@@ -1,0 +1,4 @@
+interface:
+  display_name: "Duckbill State"
+  short_description: "Deterministic Duckbill workflow state"
+  default_prompt: "Use $duckbill-state to run one validated workflow-state operation."

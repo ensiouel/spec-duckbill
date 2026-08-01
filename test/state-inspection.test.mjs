@@ -4,9 +4,9 @@ import {tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
 import {spawnSync} from "node:child_process";
 import test from "node:test";
-import {parsePlan, validateState} from "../scripts/state.mjs";
+import {parsePlan, validateState} from "../skills/duckbill-state/scripts/state.mjs";
 
-const stateScript = resolve("scripts/state.mjs");
+const stateScript = resolve("skills/duckbill-state/scripts/state.mjs");
 
 function git(repo, ...args) {
     const result = spawnSync("git", ["-C", repo, ...args], {encoding: "utf8"});
