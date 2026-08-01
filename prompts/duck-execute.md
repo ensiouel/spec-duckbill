@@ -20,13 +20,10 @@ Next: <one exact Duckbill command or none>
 
 ## Isolation invariant
 
-Load `duckbill-state` independently and use only its bundled deterministic CLI for workflow-state operations.
-
-This command is the sole orchestrator. Load each skill independently. A skill MUST NOT invoke another skill or receive
-another skill's report. Semantic workers receive canonical project artifacts, the selected step ID, and resolved user
-input containing only direct user answers relevant to this command; they never receive `state.json`, state output, or
-another skill's analysis. Orchestration verifies and normalizes worker evidence before sending only
-`{id,result,evidence}` records to the deterministic state CLI.
+Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
+load workers independently and give them only canonical artifacts, the selected step ID, and resolved user input with
+relevant direct user answers—never workflow state or another worker's report. Pass only explicit operations and
+normalized `{id,result,evidence}` records to the state CLI.
 
 ## Flow
 
@@ -49,15 +46,14 @@ another skill's analysis. Orchestration verifies and normalizes worker evidence 
 6. If this is not a resumed attempt, call the state CLI `begin --mode execute`. After it succeeds, load the executor in
    execution mode and implement exactly the selected step. A resumed attempt uses the same worker without another
    `begin`.
-7. Normalize every `SC-###` result and call the state CLI `finish` with `completed|partial|failed`. The CLI rejects
-   `completed` unless all selected-step criteria pass.
+7. Build the complete `SC-###` result set. If a higher-level mismatch appeared after `begin`, preserve evaluated
+   evidence, mark every unevaluated criterion `blocked`, call `finish` with `failed`, and route to its owner. Otherwise
+   call the state CLI `finish` with `completed|partial|failed`.
 8. Enter this step either directly from `validation` mode or after `finish`, then re-read state. When all steps are
    completed, orchestration itself reverifies prerequisites, runs every `VAL-###` item against the combined
    implementation, and records the complete validation result set. No semantic worker decides whether final validation
    is due. Final validation does not edit implementation. Classify failures by owning step, plan, specification, or
    external blocker.
-9. Re-read changed artifacts and state. If the worker discovered a higher-level mismatch after `begin`, close the
-   attempt as `failed` with a complete `SC-###` result set: preserve current evidence and mark every unevaluated
-   criterion `blocked` with the mismatch as evidence. Report the owning refinement; never hand-edit state.
-10. Return `completed|partial|failed; <step and overall result>`. `Next` is the first pending step, owning refinement or
-    repair command, the current step after an interrupted operation, or `none`. Recommendations never run automatically.
+9. Re-read changed artifacts and state; never hand-edit state. Return `completed|partial|failed; <step and overall
+   result>`. `Next` is the first pending step, owning refinement or repair command, the interrupted current step, or
+   `none`. Never run the recommendation automatically.

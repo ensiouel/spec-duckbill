@@ -20,6 +20,7 @@ const paths = {
     executionReport: "skills/duckbill-step-executor/references/execution-report.md",
     clarifierPolicy: "skills/duckbill-clarifier/references/clarification-policy.md",
     planFormat: "skills/duckbill-plan-author/references/plan-format.md",
+    specFormat: "skills/duckbill-spec-author/references/spec-format.md",
     readme: "README.md",
 };
 
@@ -51,14 +52,27 @@ test("all prompts preserve the exact three-line result contract", () => {
     }
 });
 
-test("each concern has one documented source of truth", () => {
-    matchesAll("readme", [
-        /required behavior and decisions.*`specs\/<name>\.md`/i,
-        /implementation sequence and proof definitions.*plan\.md/i,
-        /current progress and evidence.*state\.json/i,
-        /history.*Git/i,
-        /not stored twice/i,
+test("README documents the user workflow and commands", () => {
+    includesAll("readme", [
+        "pi install https://github.com/ensiouel/spec-duckbill",
+        "/duck-init",
+        "/duck-spec",
+        "/duck-plan",
+        "/duck-execute",
+        "/duck-refine-spec",
+        "/duck-refine-plan",
+        "/duck-refine-code",
+        "Changed:",
+        "Status:",
+        "Next:",
     ]);
+    matchesAll("readme", [/one step at a time/i, /never starts the next step automatically/i, /Keep `state\.json` in Git/i]);
+});
+
+test("specification, plan, and state boundaries have canonical internal documentation", () => {
+    matchesAll("specFormat", [/Specification intent owns scope, required behavior\/constraints/i]);
+    matchesAll("planFormat", [/The plan owns approach, scope/i, /state\.json` stores only progress and evidence/i]);
+    matchesAll("stateSkill", [/only source of truth for state shape, enums, transitions, validation, and persistence/i]);
 });
 
 test("plan definitions use stable IDs and contain no operational state", () => {
@@ -74,9 +88,15 @@ test("plan creation initializes state only after plan validation", () => {
 });
 
 test("normal state API is a small sequential protocol", () => {
-    includesAll("readme", ["`read`", "`init`", "`record`", "`begin`", "`finish`", "`sync-plan`"]);
-    matchesAll("readme", [/single writer/i, /no state revisions, locks, event logs, baselines/i, /state CLI is ordinary code/i]);
     assert.equal(existsSync(resolve(paths.stateSkill)), true);
+    includesAll("stateSkill", [
+        "`read [--step <step-id>]`",
+        "`init`",
+        "`record --scope <prerequisites|validation> --checks <json-array>`",
+        "`begin --step <step-id> --mode <execute|repair>`",
+        "`finish --step <step-id> --outcome <completed|partial|failed> --checks <json-array>`",
+        "`sync-plan --affected <comma-separated-step-ids|none>`",
+    ]);
     matchesAll("stateSkill", [/bundled CLI as the only interface/i, /MUST NOT infer semantic evidence, affected IDs, ownership, routing/i]);
     assert.match(read("stateCli"), /usage: state\.mjs read\|init\|sync-plan\|record\|begin\|finish/u);
     assert.doesNotMatch(read("stateCli"), /expected-revision|begin-attempt|finish-attempt|build-patch|reconcile-plan/u);
@@ -118,9 +138,8 @@ test("semantic workers cannot read workflow state or invoke workers", () => {
 
 test("semantic workers receive resolved user input without another skill report", () => {
     for (const name of ["spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
-        matchesAll(name, [/resolved user input/i, /direct user answers/i]);
+        matchesAll(name, [/resolved user input/i, /direct user answers/i, /never .*another (?:skill|worker)'s report/i]);
     }
-    matchesAll("spec", [/Never pass a clarification report into another skill/i]);
     matchesAll("execute", [/Load `duckbill-step-executor`.*using only canonical artifacts and resolved user input/i]);
     matchesAll("plan", [/load `duckbill-plan-author`.*specification, verified project facts, and resolved user input/i]);
     matchesAll("refinePlan", [/load `duckbill-plan-refiner`.*using only canonical artifacts and resolved user input/i]);
@@ -134,8 +153,16 @@ test("executor preflight cannot reach mutation steps", () => {
 
 test("failed attempts still produce complete criterion evidence", () => {
     for (const name of ["execute", "refineCode"]) {
-        matchesAll(name, [/close the attempt as (?:`failed`|failed) with a complete `SC-###` result set/i, /unevaluated criterion.*`blocked`/i]);
+        matchesAll(name, [
+            /complete `SC-###` result set/i,
+            /higher-level mismatch.*after `begin`.*unevaluated criterion `blocked`.*`finish` with `failed`/i,
+        ]);
     }
+});
+
+test("prompts invoke the state CLI without restating its transition internals", () => {
+    assert.doesNotMatch(read("refinePlan"), /It updates hashes|adds\/removes plan steps|resets affected|filters retired check results|reset that interrupted attempt/u);
+    assert.doesNotMatch(read("execute"), /The CLI rejects `completed`|state revisions|event logs|baselines/u);
 });
 
 test("validation mode enters final validation without a finish transition", () => {
@@ -159,7 +186,14 @@ test("orchestration alone owns final plan validation", () => {
     }
 });
 
-test("restart recovery uses canonical files and a compact state read", () => {
-    matchesAll("readme", [/new AI session recovers by reading the specification, plan, and compact state summary/i]);
-    matchesAll("readme", [/`read` returns a compact summary/i, /when requested, one step's evidence/i]);
+test("execution resumes from canonical files and a compact state read", () => {
+    matchesAll("execute", [
+        /Require canonical `specs\/plans\/<name>\/plan\.md`/i,
+        /Read state for the selected step/i,
+        /selected `currentStep` resumes its existing attempt/i,
+    ]);
+    matchesAll("stateCli", [
+        /function summary\(workflow, selectedId = null\)/i,
+        /selectedStep: \{.*criterionIds: selectedPlan\.criteria/i,
+    ]);
 });

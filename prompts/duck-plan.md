@@ -20,12 +20,9 @@ Next: <one exact Duckbill command or none>
 
 ## Isolation invariant
 
-Load `duckbill-state` independently and use only its bundled deterministic CLI for workflow-state operations.
-
-This command is the sole orchestrator. Load every skill independently. The state adapter receives only typed operation
-arguments. A semantic worker receives only canonical specification/project files and resolved user input: the original
-request plus direct user answers, without another skill's analysis, report, or workflow state. Initialize state only
-after plan validation.
+Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
+load workers independently and give them only canonical artifacts and resolved user input—the original request plus
+direct user answers—never workflow state or another worker's report.
 
 ## Flow
 
@@ -40,13 +37,10 @@ after plan validation.
    - for a clean ID-based plan without state, call the state CLI `init`;
    - otherwise read state and route changed plan/specification to plan refinement, a running or pending step to its
      exact `/duck-execute` command, validation to `/duck-execute` for the last step, and a complete plan to `none`.
-5. For a new plan, load `duckbill-plan-author` independently using only the specification, verified project facts, and
-   resolved user input. Resolve material unknowns before writing. Give every present prerequisite and every
-   criterion/validation item a globally unique stable `PRE-###`, `SC-###`, or `VAL-###` ID. Create no embedded
-   operational state.
-6. Validate reciprocal links, IDs, mappings, dependencies, Actions, criteria, commands, and absence of status/evidence.
-   Then call the state CLI `init`, which creates the small plan-local `state.json`.
+5. For a new plan, load `duckbill-plan-author` independently with the specification, verified project facts, and
+   resolved user input. Resolve material unknowns before writing and validate the returned plan.
+6. Initialize state only after plan validation by calling the state CLI `init`.
 7. If initialization or post-write verification fails, remove only files created by this invocation and restore the
    exact prior plan when applicable. Never leave a new plan without valid state.
 8. Re-read plan and state. Success returns the exact first execution command, validation command, or `none`.
-   Recommendations never run automatically.
+   Never run the recommendation automatically.

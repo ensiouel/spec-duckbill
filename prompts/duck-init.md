@@ -19,16 +19,12 @@ Flow:
 
 1. Empty name: `Changed: none`; `Status: blocked; specification name is required`; `Next: none`.
 2. Treat the full argument as a human-readable name, not a path or feature description.
-3. Load `duckbill-spec-author` in initialization mode. MUST use its script; MUST NOT derive the path, write the file
+3. Load `duckbill-spec-author` in initialization mode and use its script. Do not derive the path, write the draft
    manually, inspect the project, or develop the specification.
-4. Verify the draft contains only initialization metadata and input guidance. MUST NOT create a plan, workflow state,
-   or implementation code.
-5. Script failure before creation: return `blocked` with no changes. Verification failure after creation: remove only
-   this invocation's draft and verify removal. If safe cleanup fails, report the remaining path in `Changed`, use
-   `Status: failed; <reason>`, and `Next: none`.
-6. Success:
-   `Changed: <created specification path>`
-   `Status: draft; replace the [WRITE HERE] line`
-   `Next: /duck-spec <created specification path>`
+4. Verify that only the minimal draft was created; no plan, workflow state, or implementation may change.
+5. A script failure returns `blocked` with no changes. After a verification failure, remove only this invocation's
+   draft and verify removal. If cleanup is unsafe or fails, report the remaining path and return `failed`.
+6. Success returns `Status: draft; replace the [WRITE HERE] line` and
+   `Next: /duck-spec <created specification path>`.
 
-Recommendations belong only in `Next` and never run automatically.
+Put recommendations only in `Next`; never run them automatically.

@@ -20,12 +20,10 @@ Next: <one exact Duckbill command or none>
 
 ## Isolation invariant
 
-Load `duckbill-state` independently and use only its bundled deterministic CLI for workflow-state operations.
-
-This command is the sole orchestrator. Skills never invoke each other or receive each other's reports. The semantic
-worker receives canonical artifacts, resolved user input (original feedback plus direct user answers), and the selected
-ID, but no state or another skill's analysis. The deterministic state CLI receives only normalized transition
-arguments and `{id,result,evidence}` records.
+Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
+load workers independently and give them only canonical artifacts, the selected step ID, and resolved user input—the
+original feedback plus direct user answers—never workflow state or another worker's report. Pass only explicit
+operations and normalized `{id,result,evidence}` records to the state CLI.
 
 ## Flow
 
@@ -43,11 +41,11 @@ arguments and `{id,result,evidence}` records.
    material unknowns block without writes.
 6. Call the state CLI `begin --mode repair`. Then load the worker in correction mode, apply the smallest governed repair,
    and re-evaluate every selected-step criterion.
-7. Normalize every `SC-###` result and call the state CLI `finish` with `completed|partial|failed`. Then orchestration
-   re-reads state. If all steps are completed, orchestration itself runs and records the full `VAL-###` set without
-   asking the code-refiner worker to determine plan completion or edit another step.
-8. Re-read changed artifacts and state; verify specification and plan intent stayed unchanged. If a higher-level
-   mismatch escaped preflight, close the attempt as failed with a complete `SC-###` result set: preserve current
-   evidence and mark every unevaluated criterion `blocked` with the mismatch as evidence. Then report its owner.
+7. Build the complete `SC-###` result set. If a higher-level mismatch appeared after `begin`, preserve evaluated
+   evidence, mark every unevaluated criterion `blocked`, call `finish` with `failed`, and route to its owner. Otherwise
+   call the state CLI `finish` with `completed|partial|failed`.
+8. Re-read changed artifacts and state and verify specification and plan intent stayed unchanged. If all steps are
+   completed, orchestration itself runs and records the full `VAL-###` set; the code-refiner never owns plan completion
+   or another step. Route validation failures to their owning step, plan, specification, or external blocker.
 9. Return `completed|partial|failed; <step and plan result>`. `Next` is the first pending step, owning refinement, or
-   `none`. Recommendations never run automatically.
+   `none`. Never run the recommendation automatically.

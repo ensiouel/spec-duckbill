@@ -10,9 +10,8 @@ Example: `/duck-spec specs/user-authentication.md`
 This command MAY change only the selected specification. It MUST NOT create plan intent, workflow state, tests, or
 implementation code.
 
-Skills are invoked independently by this command. Never pass a clarification report into another skill as context.
-After clarification, the author receives canonical files plus resolved user input: the original request and direct
-user answers, without another skill's analysis or report.
+This command is the sole orchestrator. Load skills independently. Give the author only canonical files and resolved
+user input—the original request plus direct user answers—never another skill's report.
 
 Output MUST be exactly three lines, in order, with nothing else:
 
@@ -34,21 +33,13 @@ Flow:
    In both cases use `Next: /duck-plan <spec-file>`; `/duck-plan` owns existing-plan routing. Do not author further.
 4. Otherwise require `status: draft` and substantive input beyond `[WRITE HERE]`. Missing input returns
    `blocked; substantive specification input is required`, `Changed: none`, `Next: none`.
-5. Before writing, read applicable project instructions and only project context needed to verify specification facts.
-   Load `duckbill-clarifier`; ask only specification-level questions. Any material unknown MUST stop before writes with
-   `Status: blocked; material unknown: <concise clarification question>` and `Next: none`.
-6. Classify supplied technical detail by ownership. Keep it only when it is a required specification constraint or
-   high-level design decision. Files, symbols, libraries, algorithms, Actions, and internal code structure that affect
-   only implementation are plan intent and MUST NOT enter the specification.
-7. Load `duckbill-spec-author` in authoring mode. Write specification intent, remove draft guidance and `status`, and set
-   the canonical future `plan-file`. MUST NOT invoke `/duck-plan`.
-8. Re-read the file; require the author quality and readiness checks, stable requirement IDs, and unchanged plan/code.
-9. Success:
+5. Read applicable project instructions and only the context needed to verify specification facts. Load
+   `duckbill-clarifier` for specification readiness. A material unknown blocks before writes and returns its concise
+   question with `Next: none`.
+6. Load `duckbill-spec-author` in authoring mode with canonical artifacts and resolved user input. Author the
+   specification in place; do not invoke `/duck-plan`.
+7. Re-read the specification and require the author quality/readiness checks, stable requirement IDs, canonical
+   `plan-file`, and unchanged plan and code.
+8. Success returns `Status: ready; specification intent verified` and `Next: /duck-plan <spec-file>`.
 
-```text
-Changed: <spec-file>
-Status: ready; specification intent verified
-Next: /duck-plan <spec-file>
-```
-
-Every blocked result MUST leave all files unchanged. Recommendations belong only in `Next` and never run automatically.
+Every blocked result leaves all files unchanged. Put recommendations only in `Next`; never run them automatically.

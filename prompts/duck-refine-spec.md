@@ -20,9 +20,9 @@ Next: <one exact Duckbill command or none>
 
 ## Isolation invariant
 
-This command is the sole orchestrator. Load skills independently and never pass one skill's report to another.
-Semantic workers read canonical artifacts plus resolved user input: original feedback and direct user answers, without
-another skill's analysis. This command owns routing and user interaction.
+This command is the sole orchestrator. Load skills independently and give workers only canonical artifacts and resolved
+user input—the original feedback plus direct user answers—never another worker's report. This command owns routing and
+user interaction.
 
 ## Flow
 
@@ -35,10 +35,8 @@ another skill's analysis. This command owns routing and user interaction.
    independently in preflight using only canonical artifacts and resolved user input. Continue only for a
    specification-level change. Plan changes, governed code defects, and material unknowns return to their owner without
    writes.
-5. Authorize the specification worker to modify only the specification. Preserve stable requirement/decision IDs when
-   meaning is unchanged and preserve `plan-file`.
-6. Re-read the specification, run readiness checks, and verify linked plan, state, and implementation unchanged. A
-   changed specification makes the linked state report `spec-changed` on its next read; do not persist that derived
-   status.
-7. A changed linked specification returns the exact plan-refinement command. Without a plan, route to plan creation.
-   Unchanged intent returns `Next: none`. Recommendations never run automatically.
+5. Authorize refinement of only the specification, then re-read it, run readiness checks, and verify the linked plan,
+   state, and implementation unchanged. A changed specification makes the linked state report `spec-changed` on its
+   next read; do not persist that derived status.
+6. A changed linked specification returns the exact plan-refinement command. Without a plan, route to plan creation.
+   Unchanged intent returns `Next: none`. Never run the recommendation automatically.
