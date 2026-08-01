@@ -176,6 +176,10 @@ test("plans may omit prerequisites and ignore step-like headings outside impleme
     const source = `${plan({second: false, prerequisites: false})}\n## References\n\n### Step 99: Example only\n`;
     assert.deepEqual(parsePlan(source).prerequisites, []);
     assert.deepEqual(parsePlan(source).steps.map((step) => step.id), ["first"]);
+    assert.throws(
+        () => parsePlan(source.replace("None.", "External approval is required.")),
+        /Prerequisite must contain only PRE-### items or exact None\./u,
+    );
 
     const {repo, path} = setup(context, {second: false, prerequisites: false});
     assert.equal(command(repo, path, "init").status, 0);
@@ -232,6 +236,12 @@ test("sequential lifecycle completes two steps and final validation", (context) 
     assert.deepEqual(Object.keys(read.validationResults), ["VAL-001"]);
     assert.equal("prerequisiteResults" in read, false);
     assert.deepEqual(read.steps.map((step) => step.attempt), [1, 2]);
+
+    write(repo, "specs/demo.md", specification(" Updated intent."));
+    const changedSpecification = JSON.parse(command(repo, path, "read").stdout);
+    assert.equal(changedSpecification.specOutdated, true);
+    assert.equal(changedSpecification.validationComplete, false);
+    assert.equal(command(repo, path, "sync-plan", {affected: "none"}).status, 0);
 
     assert.equal(command(repo, path, "record", {
         scope: "prerequisites",
@@ -352,6 +362,25 @@ test("runtime validator rejects hidden patch and concurrency fields", () => {
         patchContext: {},
     });
     assert.match(errors.join("; "), /revision|patchContext/u);
+});
+
+test("runtime validator rejects impossible running and unchecked states", () => {
+    const base = {
+        schemaVersion: 1,
+        specHash: `sha256:${"a".repeat(64)}`,
+        planHash: `sha256:${"b".repeat(64)}`,
+        currentStep: "first",
+        prerequisites: {},
+        steps: {first: {attempt: 0, outcome: null, checks: {}}},
+        validation: {},
+    };
+    assert.match(validateState(base).join("; "), /started attempt/u);
+
+    const unchecked = structuredClone(base);
+    unchecked.currentStep = null;
+    unchecked.steps.first.attempt = 1;
+    unchecked.steps.first.checks = {"SC-001": {result: "passed", evidence: "stale evidence"}};
+    assert.match(validateState(unchecked).join("; "), /cannot have checks without an outcome/u);
 });
 
 test("unchanged sync rejects state inconsistent with its plan", (context) => {

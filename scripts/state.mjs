@@ -101,12 +101,22 @@ function headingBlock(lines, heading, endPattern = /^##\s+/u) {
 
 function definitionIds(lines, start, end, prefix, label, allowEmpty = false) {
     const ids = [];
+    const other = [];
     const pattern = new RegExp(`^\\s*-\\s+\\*\\*(${prefix}-[0-9]{3}):\\*\\*\\s+\\S`, "u");
     for (let index = start; index < end; index += 1) {
-        if (!/^\s*-\s+/u.test(lines[index])) continue;
+        const text = lines[index].trim();
+        if (!text) continue;
+        if (!/^\s*-\s+/u.test(lines[index])) {
+            other.push(text);
+            continue;
+        }
         const match = lines[index].match(pattern);
         if (!match) throw new StateError("INVALID_PLAN", `${label} item at line ${index + 1} requires a stable ${prefix}-### ID`);
         ids.push(match[1]);
+    }
+    if (allowEmpty) {
+        if (ids.length === 0 && (other.length === 0 || (other.length === 1 && other[0] === "None."))) return ids;
+        if (other.length) throw new StateError("INVALID_PLAN", `${label} must contain only ${prefix}-### items or exact None.`);
     }
     if (!allowEmpty && ids.length === 0) throw new StateError("INVALID_PLAN", `${label} must contain at least one item`);
     return ids;
@@ -230,10 +240,16 @@ export function validateState(state) {
             if (step.outcome !== null && !OUTCOMES.includes(step.outcome)) errors.push(`steps.${id}.outcome is invalid`);
             if (step.attempt === 0 && step.outcome !== null) errors.push(`steps.${id} cannot have an outcome before its first attempt`);
             validateCheckMap(step.checks, `steps.${id}.checks`, errors);
+            if (step.outcome === null && plainObject(step.checks) && Object.keys(step.checks).length) {
+                errors.push(`steps.${id} cannot have checks without an outcome`);
+            }
         }
     }
     if (typeof state.currentStep === "string" && !state.steps?.[state.currentStep]) errors.push("currentStep must reference a state step");
     if (typeof state.currentStep === "string" && state.steps?.[state.currentStep]?.outcome !== null) errors.push("currentStep outcome must be null");
+    if (typeof state.currentStep === "string" && (state.steps?.[state.currentStep]?.attempt ?? 0) < 1) {
+        errors.push("currentStep must reference a started attempt");
+    }
     return errors;
 }
 
@@ -259,6 +275,8 @@ function readState(path, requiredState = true) {
 }
 
 function atomicWrite(path, value) {
+    const errors = validateState(value);
+    if (errors.length) throw new StateError("INVALID_STATE", "refusing to write invalid state", {errors});
     mkdirSync(dirname(path), {recursive: true});
     const temporary = `${path}.tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
     let descriptor;
@@ -319,7 +337,7 @@ function summary(workflow, selectedId = null) {
     });
     const firstPendingStep = steps.find((step) => step.status !== "completed")?.id ?? null;
     const prerequisitesComplete = !planOutdated && passed(plan.prerequisites, state.prerequisites);
-    const validationComplete = !planOutdated && passed(plan.validation, state.validation);
+    const validationComplete = !planOutdated && !specOutdated && passed(plan.validation, state.validation);
     const allStepsComplete = steps.every((step) => step.status === "completed");
     const complete = !planOutdated && !specOutdated && prerequisitesComplete && allStepsComplete && validationComplete;
     const mode = planOutdated ? "plan-changed" : specOutdated ? "spec-changed" : firstPendingStep ? "execute" : complete ? "complete" : "validation";
