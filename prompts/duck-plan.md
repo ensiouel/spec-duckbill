@@ -1,60 +1,51 @@
 ---
-description: Create plan intent from a ready specification without changing the specification or code
+description: Create plan intent and initialize isolated workflow state from a ready specification
 argument-hint: "<spec-file>"
 ---
 
-Create a plan from specification `$1`.
+Create or inspect the plan for specification `$1`.
 
 Example: `/duck-plan specs/user-auth.md`
 
-This command MAY change only the plan level. Specification intent and implementation code are read-only.
+This command MAY change `plan.md` and plan-local `state.json`. Specification intent and implementation code are
+read-only.
 
 Output MUST be exactly three lines, in order, with nothing else:
 
 ```text
-Changed: <changed plan or none>
+Changed: <plan.md, state.json, or none>
 Status: <result and reason>
 Next: <one exact Duckbill command or none>
 ```
 
-Flow:
+## Isolation invariant
 
-1. Empty path: return `blocked; usage: /duck-plan <spec-file>` with `Changed: none`, `Next: none`.
-2. Require an existing repository-relative specification with no line fragment. Read it and applicable project
-   instructions. Invalid input returns `blocked` with no changes. A draft returns
-   `blocked; specification draft is incomplete` and `Next: /duck-spec <spec-file>`.
-3. Load `duckbill-clarifier` and apply the specification readiness gate. Incomplete or contradictory specification
-   intent returns `blocked; specification intent is not ready` and
-   `Next: /duck-refine-spec <spec-file> <normalized feedback>` without writes.
-4. Derive `specs/plans/<name>/plan.md`. Before writing, require specification `plan-file` to equal it. Otherwise return
-   `blocked; specification plan-file is missing or noncanonical` and `Next: /duck-spec <spec-file>`.
-5. If the plan exists, MUST NOT overwrite plan intent or execution state. Validate it read-only, except:
-   - invalid/missing `spec-file` backlink: metadata-recovery mode MAY set only `spec-file: <spec-file>`, then return
-     `completed; reciprocal specification link restored`;
-   - valid, synchronized, executable: return `unchanged; existing plan is executable` and the first exact
-     `/duck-execute` command;
-   - valid, synchronized, completed: return `unchanged; existing plan is completed`, `Next: none`;
-   - otherwise: return `unchanged; existing plan requires synchronization` and
-     `Next: /duck-refine-plan <plan-file> whole Synchronize with the current specification`.
-   After backlink recovery, select `Next` by the same synchronized/executable rules. Do not continue to authoring.
-6. For a new plan, record the specification and implementation tree, load `duckbill-plan-author`, and inspect the
-   project. Resolve unknowns through `duckbill-clarifier` before writes:
+Resolve `../scripts/state.mjs` relative to this prompt as the deterministic state CLI.
 
-| Unknown | Status | Next |
-|---|---|---|
-| specification-level | `blocked; specification intent is incomplete` | `/duck-refine-spec <spec-file> <normalized feedback>` |
-| plan-level | `blocked; material unknown: <concise clarification question>` | `none` |
+This command is the sole orchestrator. Load every skill independently. A semantic worker receives only canonical
+specification/project files and resolved user input: the original request plus direct user answers, without another
+skill's analysis, report, or workflow state. Initialize state only after plan validation.
 
-7. Write only the new plan with reciprocal `spec-file`. A new plan MUST have unchecked evidence and MUST NOT contain
-   `Execution State` or per-step `Execution` blocks. MUST NOT edit the specification, code, or execute a step.
-8. Re-read it and validate reciprocal links, stable IDs, mappings, dependencies, Actions, Success Criteria, commands,
-   and clean lazy execution state. Verify specification and implementation unchanged.
-9. Success:
+## Flow
 
-```text
-Changed: <plan-file>
-Status: ready; plan intent verified and execution state not created
-Next: /duck-execute <plan-file> <first executable step ID>
-```
-
-Every blocked result MUST leave all files unchanged. Recommendations belong only in `Next`; they never run automatically.
+1. Empty path: return `blocked; usage: /duck-plan <spec-file>` with no changes.
+2. Require an existing repository-relative ready specification, applicable instructions, canonical
+   `plan-file: specs/plans/<name>/plan.md`, and no line fragment. Invalid or draft input blocks without writes.
+3. Load `duckbill-clarifier` independently for the readiness gate. A specification gap routes to specification
+   refinement; a material planning unknown blocks before any write.
+4. If the plan already exists:
+   - restore only a missing/wrong `spec-file` backlink through plan-author metadata mode, then stop;
+   - reject checkboxes or embedded Execution blocks as an unsupported plan format without writes;
+   - for a clean ID-based plan without state, call the state CLI `init`;
+   - otherwise read state and route changed plan/specification to plan refinement, a running or pending step to its
+     exact `/duck-execute` command, validation to `/duck-execute` for the last step, and a complete plan to `none`.
+5. For a new plan, load `duckbill-plan-author` independently using only the specification, verified project facts, and
+   resolved user input. Resolve material unknowns before writing. Give every present prerequisite and every
+   criterion/validation item a globally unique stable `PRE-###`, `SC-###`, or `VAL-###` ID. Create no embedded
+   operational state.
+6. Validate reciprocal links, IDs, mappings, dependencies, Actions, criteria, commands, and absence of status/evidence.
+   Then call the state CLI `init`, which creates the small plan-local `state.json`.
+7. If initialization or post-write verification fails, remove only files created by this invocation and restore the
+   exact prior plan when applicable. Never leave a new plan without valid state.
+8. Re-read plan and state. Success returns the exact first execution command, validation command, or `none`.
+   Recommendations never run automatically.

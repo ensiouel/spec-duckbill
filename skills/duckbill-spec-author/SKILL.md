@@ -35,8 +35,9 @@ Read [references/spec-format.md](references/spec-format.md) before development o
 ## Boundaries
 
 - MUST NOT invent requirements or project facts, replace user intent, or cross the reference content boundary.
-- MUST NOT create/modify a plan, execution state, patch, or implementation code.
+- MUST NOT create/modify a plan, workflow state, or implementation code, and MUST NOT read `state.json`.
 - Metadata recovery MUST preserve specification intent and the linked plan.
+- Return only to the caller. MUST NOT invoke another worker or choose a follow-up command.
 
 ## Result
 

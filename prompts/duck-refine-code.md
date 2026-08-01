@@ -7,70 +7,47 @@ Repair completed step `$2` in plan `$1` from feedback `${@:3}`.
 
 Example: `/duck-refine-code specs/plans/user-auth/plan.md hash-password src/auth/password.go#L42 Preserve the error cause`
 
-This is a repair branch, not the next waterfall stage. It MAY change implementation code, tests, the selected patch,
-and execution state. It MUST NOT change specification intent or plan intent.
+This command MAY change implementation code, tests, and plan-local `state.json`. It MUST preserve specification and
+plan intent.
 
 Output MUST be exactly three lines, in order, with nothing else:
 
 ```text
-Changed: <implementation files, tests, plan state, patch, or none>
+Changed: <implementation files, tests, state.json, or none>
 Status: <result and reason>
 Next: <one exact Duckbill command or none>
 ```
 
-Flow:
+## Isolation invariant
 
-1. Missing argument: return `blocked; usage: /duck-refine-code <plan-file> <step> <feedback>` with `Changed: none`,
-   `Next: none`.
-2. Parse canonical `specs/plans/<name>/plan.md` plus optional exact line fragment. Read the full plan and valid feedback
-   references; resolve one unique stable step. Invalid input returns `blocked` with no changes.
-3. Require the selected step to have `Execution` with `Status: completed` and Attempt ≥ 1. A new/unexecuted,
-   `partial`, `failed`, or `stale` step returns `unchanged; selected step requires execution` and its exact
-   `/duck-execute`. An earlier such step takes precedence: return `unchanged; earlier execution work takes precedence`
-   and that earlier `/duck-execute`.
-4. Read the governing specification from plan `spec-file`; require its reciprocal `plan-file`. Missing/invalid governing
-   spec returns `blocked; governing specification link is invalid`, `Next: none`. A valid specification with a bad
-   backlink returns `blocked; reciprocal plan link is invalid`, `Next: /duck-spec <spec-file>`. Read instructions,
-   selected step, referenced code, and current patch; record all governed artifacts before writes.
-5. Load `duckbill-code-refiner` in preflight mode. Complete classification, permissions, and clarification before any
-   mutation:
+Resolve `../scripts/state.mjs` relative to this prompt as the deterministic state CLI.
 
-| Feedback | Action | Status | Next |
-|---|---|---|---|
-| code defect already governed by specification and plan intent | continue | — | — |
-| implementation already satisfies governing intent | STOP | `unchanged; feedback is already satisfied` | first later `/duck-execute`, otherwise `none` |
-| plan-level change | STOP | `blocked; requested change belongs in the plan` | `/duck-refine-plan <plan-file> <step-id-or-whole> <normalized feedback>` |
-| specification-level change | STOP | `blocked; requested change belongs in the specification` | `/duck-refine-spec <spec-file> <normalized feedback>` |
-| material unknown | STOP | `blocked; material unknown: <concise clarification question>` | `none` |
+This command is the sole orchestrator. Skills never invoke each other or receive each other's reports. The semantic
+worker receives canonical artifacts, resolved user input (original feedback plus direct user answers), and the selected
+ID, but no state or another skill's analysis. The deterministic state CLI receives only normalized transition
+arguments and `{id,result,evidence}` records.
 
-   A STOP result MUST use `Changed: none`, create no Attempt, and leave every repository file and execution-state field
-   byte-for-byte unchanged.
-6. For a code defect, prepare an isolated repair baseline before editing:
-   - `Current Step` equals selected ID: require and reuse its valid Base Tree;
-   - previously completed non-current step: capture a fresh Base Tree, set it as Current Step, and later replace only
-     this step's patch.
-   Preserve prior attempts; increment the selected step's prior Attempt once and store the same global/per-step value.
-   Set Patch Status `building` and reset only affected evidence.
-7. Resume `duckbill-code-refiner` in correction mode. Change only code/tests needed for the defect. In the plan, MAY
-   update only execution state: checkmarks; step Status/Attempt/Files Changed; Base Tree/Current Step/Attempt/Patch/Patch
-   Status. MUST preserve approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies,
-   validation definitions, risks, structure, and mappings exactly.
-8. Load `duckbill-step-patch`; rebuild only the selected step patch from the chosen Base Tree. Set Patch Status
-   `current` or `unavailable: <exact reason>`. A retryable patch failure uses
-   `Next: /duck-execute <plan-file> <step-id>` for patch recovery; external action uses `Next: none` and the cause in
-   `Status`.
-9. Re-read every changed artifact and rerun applicable checks. Verify intent unchanged and execution state truthful. If
-   a higher-level blocker escaped preflight, undo only this command's mutations and verify the recorded artifacts
-   byte-for-byte before returning blocked.
-10. If final validation is required, classify each failed item:
+## Flow
 
-| Owner | Next |
-|---|---|
-| selected step | `/duck-execute <plan-file> <step-id>`; keep it `partial` or `failed` |
-| another unique `completed` step | `/duck-refine-code <plan-file> <affected-step-id> <normalized feedback>` |
-| plan/specification intent | owning refinement command |
-| material unknown/external action | `none` |
-
-11. Final status is `completed|partial|failed; <step and plan result>`. When execution work remains, `Next` MUST be its
-   first exact `/duck-execute`; otherwise use the validation/classification route or `none`. Recommendations belong only
-   in `Next` and never run automatically.
+1. Missing argument: return `blocked; usage: /duck-refine-code <plan-file> <step> <feedback>` with no changes.
+2. Resolve one canonical plan, optional valid line fragment, one stable step ID, valid feedback references, and
+   reciprocal specification/plan links. Invalid input blocks without writes.
+3. Read state for the selected step. Missing state routes to `/duck-plan`; invalid plan or state blocks; changed plan or
+   specification routes to plan refinement. Any `currentStep` or earlier pending step takes precedence and routes to `/duck-execute`.
+   Continue only when the selected step is completed.
+4. Read instructions, selected plan intent, mapped specification intent, referenced code, and current implementation.
+   Reverify prerequisites and use the state CLI to record the complete `PRE-###` set when its stored proof is incomplete
+   or no longer credible. Stop before repair if any prerequisite fails or is blocked.
+5. Load `duckbill-code-refiner` independently in preflight mode using no state output. Continue only for a governed code
+   defect. Already-satisfied feedback is unchanged; plan/specification changes route to their owning refinement;
+   material unknowns block without writes.
+6. Call the state CLI `begin --mode repair`. Then load the worker in correction mode, apply the smallest governed repair,
+   and re-evaluate every selected-step criterion.
+7. Normalize every `SC-###` result and call the state CLI `finish` with `completed|partial|failed`. Then orchestration
+   re-reads state. If all steps are completed, orchestration itself runs and records the full `VAL-###` set without
+   asking the code-refiner worker to determine plan completion or edit another step.
+8. Re-read changed artifacts and state; verify specification and plan intent stayed unchanged. If a higher-level
+   mismatch escaped preflight, close the attempt as failed with a complete `SC-###` result set: preserve current
+   evidence and mark every unevaluated criterion `blocked` with the mismatch as evidence. Then report its owner.
+9. Return `completed|partial|failed; <step and plan result>`. `Next` is the first pending step, owning refinement, or
+   `none`. Recommendations never run automatically.

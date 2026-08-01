@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {readFileSync} from "node:fs";
+import {existsSync, readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import test from "node:test";
 
@@ -11,16 +11,19 @@ const paths = {
     refinePlan: "prompts/duck-refine-plan.md",
     execute: "prompts/duck-execute.md",
     refineCode: "prompts/duck-refine-code.md",
-    planFormat: "skills/duckbill-plan-author/references/plan-format.md",
-    specFormat: "skills/duckbill-spec-author/references/spec-format.md",
-    refinementGuide: "skills/duckbill-plan-refiner/references/refinement-guide.md",
+    planAuthor: "skills/duckbill-plan-author/SKILL.md",
+    planRefiner: "skills/duckbill-plan-refiner/SKILL.md",
+    executor: "skills/duckbill-step-executor/SKILL.md",
+    codeRefiner: "skills/duckbill-code-refiner/SKILL.md",
+    stateCli: "scripts/state.mjs",
     executionReport: "skills/duckbill-step-executor/references/execution-report.md",
-    patchSkill: "skills/duckbill-step-patch/SKILL.md",
+    clarifierPolicy: "skills/duckbill-clarifier/references/clarification-policy.md",
+    planFormat: "skills/duckbill-plan-author/references/plan-format.md",
     readme: "README.md",
 };
 
 function read(name) {
-    return readFileSync(resolve(paths[name] ?? name), "utf8");
+    return readFileSync(resolve(paths[name] ?? name), "utf8").replace(/\r\n?/gu, "\n");
 }
 
 function compact(name) {
@@ -28,169 +31,126 @@ function compact(name) {
 }
 
 function includesAll(name, values) {
-    const document = compact(name);
-    for (const value of values) {
-        assert.ok(document.includes(value), `${paths[name] ?? name}: missing ${JSON.stringify(value)}`);
-    }
+    const source = compact(name);
+    for (const value of values) assert.ok(source.includes(value), `${paths[name] ?? name}: missing ${JSON.stringify(value)}`);
 }
 
 function matchesAll(name, patterns) {
-    const document = compact(name);
-    for (const pattern of patterns) assert.match(document, pattern, paths[name] ?? name);
+    const source = compact(name);
+    for (const pattern of patterns) assert.match(source, pattern, paths[name] ?? name);
 }
 
-test("scenario 1: specification creation owns only the specification level", () => {
-    matchesAll("init", [/do not\s+derive the path|MUST NOT derive the path/i, /MUST NOT create a plan, execution state, patch, or implementation code/]);
-    matchesAll("spec", [/write only specification intent|MAY change only the selected specification/i, /do not create plan intent, execution state, patches|MUST NOT create plan intent, execution state, patches/i]);
-    matchesAll("spec", [/Status: ready; specification intent verified/, /Next: \/duck-plan <spec-file>/]);
-});
+const promptNames = ["init", "spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"];
 
-test("scenario 2: new plan creation preserves specification and starts without execution state", () => {
-    matchesAll("plan", [
-        /change(?:s)? only the plan level/i,
-        /specification.*implementation code.*read-only/i,
-        /no `?Execution State`? or `?Execution`? blocks|MUST NOT contain `Execution State` or per-step `Execution` blocks/i,
-    ]);
-    matchesAll("plan", [/Status: ready; plan intent verified and execution state not created/, /Next: \/duck-execute/]);
-});
-
-test("scenario 3: execution implements exactly one first executable step", () => {
-    matchesAll("execute", [
-        /Execute exactly one (?:implementation )?plan step/i,
-        /first step in plan order/i,
-        /implement only the selected step/i,
-        /(?:Never|MUST NOT) divide or overwrite another step's patch/i,
-    ]);
-    assert.doesNotMatch(read("execute"), /execute (?:the )?next step/iu);
-});
-
-test("scenario 4: specification refinement changes no downstream artifact", () => {
-    matchesAll("refineSpec", [
-        /Refine specification intent only|MAY change only specification intent/i,
-        /plan intent, execution state, patches, and implementation code.*read-only|MUST preserve `plan-file`, plan intent, execution state, patches, and implementation code/i,
-        /do not mark any step `stale`|MUST NOT mark a step `stale`/i,
-        /linked plan, all execution state, patches, and implementation code (?:are )?byte-for-byte unchanged/i,
-    ]);
-    includesAll("refineSpec", ["/duck-refine-plan <plan-file> whole Synchronize with the updated specification"]);
-});
-
-test("scenario 5: plan refinement may stale only affected executed steps", () => {
-    matchesAll("refinePlan", [
-        /may update plan intent and execution state|MAY change plan intent and the execution state needed to keep evidence truthful/i,
-        /Mark an affected executed step `stale`|mark each `stale`/i,
-        /uncheck only evidence (?:no longer proving|invalidated by)/i,
-        /first affected.*`\/duck-execute`/i,
-    ]);
-    matchesAll("refinementGuide", [/Preserve unchanged criteria and execution records|Preserve unrelated state/i, /specification change alone never makes execution state stale|Specification refinement alone never stales state/i]);
-});
-
-test("scenario 6: a completed-step code defect uses code refinement", () => {
-    matchesAll("refineCode", [
-        /Require (?:that )?the selected step (?:to )?(?:has|have).*`Status: completed`/i,
-        /`code defect`.*specification.*plan intent|code defect already governed by specification and plan intent/i,
-        /MUST NOT (?:modify plan intent|change specification intent or plan intent)/i,
-    ]);
-    matchesAll("refinePlan", [/plan intent is correct, completed implementation requires correction/, /\/duck-refine-code/]);
-});
-
-test("scenario 7: specification feedback sent to a code command routes upward without writes", () => {
-    includesAll("refineCode", [
-        "specification-level change",
-        "blocked; requested change belongs in the specification",
-        "/duck-refine-spec <spec-file> <normalized feedback>",
-    ]);
-});
-
-test("scenario 8: plan feedback sent to a code command routes to plan refinement", () => {
-    includesAll("refineCode", ["plan-level change", "blocked; requested change belongs in the plan"]);
-    matchesAll("refineCode", [/\/duck-refine-plan <plan-file> <step-id(?:\|whole|-or-whole)> <normalized feedback>/]);
-});
-
-test("scenario 9: material unknowns stop before mutation", () => {
-    for (const name of ["spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
-        matchesAll(name, [/material unknown/i, /before (?:any |all |the first )?(?:writ(?:e|es|ing)|mutation)|before writes/i]);
+test("all prompts preserve the exact three-line result contract", () => {
+    for (const name of promptNames) {
+        const match = read(name).match(/Output MUST be exactly three lines, in order, with nothing else:\n\n```text\n([\s\S]*?)```/u);
+        assert.ok(match, `${name}: missing result block`);
+        assert.deepEqual(match[1].trim().split("\n").map((line) => line.split(":", 1)[0]), ["Changed", "Status", "Next"]);
     }
 });
 
-test("scenario 10: blocked and routed outcomes preserve files and state", () => {
-    matchesAll("spec", [/Changed: none/, /do not create plan intent|MUST NOT create plan intent/i]);
-    matchesAll("plan", [/Changed: none/, /Do not edit the specification|MUST NOT edit the specification/i]);
-    for (const name of ["refineSpec", "refinePlan", "execute", "refineCode"]) {
-        matchesAll(name, [/Changed: none/, /byte-for-byte unchanged|Every blocked or routed result preserves.*byte-for-byte|leave all files and execution state unchanged|MUST NOT modify specification intent, plan intent/]);
-    }
-});
-
-test("scenario 11: new work after plan refinement routes to execution", () => {
-    matchesAll("refinePlan", [/plan (?:intent )?changed.*\/duck-execute/i]);
-    matchesAll("planFormat", [/(?:new|unexecuted).*`partial`.*`failed`.*`stale`.*`\/duck-execute`/i]);
-});
-
-test("scenario 12: stale work is execution work, never code repair", () => {
-    matchesAll("refineCode", [/(?:new|unexecuted).*`partial`.*`failed`.*`stale`.*`\/duck-execute`/i]);
-    matchesAll("planFormat", [/Only `\/duck-refine-plan` (?:sets an existing execution record to `Status: stale`|MAY set `stale`)/]);
-});
-
-test("scenario 13: final validation runs after the last step and routes every failure owner", () => {
-    matchesAll("execute", [/last step.*final Validation Checklist|last implementation step.*final Validation Checklist/i, /Final-validation work MUST NOT cause this command to edit implementation outside the selected step|Final validation MUST NOT edit implementation outside the selected step/i]);
-    matchesAll("executionReport", [/Run every checklist item|Run the complete checklist/i, /another (?:uniquely identified|unique) `completed` step/i, /\/duck-execute.*\/duck-refine-code.*\/duck-refine-plan.*\/duck-refine-spec.*Next: none/i]);
-});
-
-test("scenario 14: every recommendation is a manual Next action", () => {
-    matchesAll("readme", [/recommendation.*`Next`/i, /never invokes it automatically|never run automatically/i]);
-    for (const name of ["init", "spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
-        matchesAll(name, [/Next:/, /never run automatically|Do not invoke.*automatically|Never run.*automatically|no text after them|nothing else/i]);
-    }
-});
-
-test("all prompts have the exact three-line footer contract", () => {
-    for (const name of ["init", "spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
-        const document = read(name);
-        const block = document.match(/Output MUST be exactly three lines, in order, with nothing else:\n\n```text\n([^`]+)```/u);
-        if (block) {
-            const labels = block[1].trim().split("\n").map((line) => line.split(":", 1)[0]);
-            assert.deepEqual(labels, ["Changed", "Status", "Next"], name);
-        } else {
-            matchesAll(name, [/entire command result MUST contain exactly.*`Changed`.*`Status`.*`Next`.*in that order.*no text before or after/i]);
-        }
-    }
-});
-
-test("plan intent and execution state remain distinct", () => {
-    matchesAll("planFormat", [
-        /Plan intent (?:defines how to implement the specification|owns implementation approach\/scope)/i,
-        /Execution state (?:records what actually happened|owns prerequisite\/criterion\/Validation checkmarks)/i,
-        /Prerequisite text(?: and |\/)order (?:are|is) plan intent; (?:prerequisite|its) checkmarks? (?:are|is) execution state/i,
-    ]);
-    matchesAll("refinePlan", [/Plan intent(?::| includes)/i, /Execution state(?::| includes)/i]);
-});
-
-test("reciprocal links are validated and repaired only by authoring owners", () => {
-    matchesAll("specFormat", [/`\/duck-refine-spec` preserves `plan-file`|`\/duck-refine-spec` MUST preserve `plan-file`/i, /blocks refinement.*routes to `\/duck-spec`|Refiners MUST NOT repair links/i]);
-    matchesAll("planFormat", [/`\/duck-plan` may establish or restore|`\/duck-plan` alone may establish\/restore/i, /Refinement preserves `spec-file`|refinement MUST preserve it/i]);
-    for (const name of ["execute", "refineCode"]) {
-        includesAll(name, ["governing specification link is invalid", "reciprocal plan link is invalid", "Next: /duck-spec <spec-file>"]);
-    }
-});
-
-test("stable IDs, mappings, ordering, and isolated patches remain mandatory", () => {
-    matchesAll("specFormat", [/Keep an ID when refining the same meaning|Preserve an ID when meaning is unchanged/i, /Never reuse a removed ID|never reuse a removed ID/i]);
-    matchesAll("planFormat", [
-        /Preserve the ID when.*logical outcome stays the same|Preserve an ID while its logical outcome is unchanged/i,
-        /Map requirements directly through each step's `Requirements` field|Map each in-scope ID through a step `Requirements` field/i,
-        /the only executable step/i,
-    ]);
-    matchesAll("patchSkill", [/(?:overwrite|replace) only (?:that step's|its) patch/i, /preserve every other step patch/i]);
-});
-
-test("patch recovery preserves implementation and attempt", () => {
-    matchesAll("execute", [/patch-recovery mode/i, /changes no implementation file and does not create a new Attempt|MUST NOT change implementation or create an Attempt/i]);
-    matchesAll("planFormat", [/patch-recovery mode|MAY enter patch recovery/i, /does not increment Attempt|do not increment Attempt/i]);
-});
-
-test("command and persisted status vocabularies stay separate", () => {
+test("each concern has one documented source of truth", () => {
     matchesAll("readme", [
-        /Command-result.*Status.*draft.*ready.*completed.*partial.*failed.*blocked.*unchanged/i,
-        /Persisted step.*Status.*completed.*partial.*failed.*stale/i,
-        /`blocked` means the command made no changes|A `blocked` result changes no files or execution state/i,
+        /required behavior and decisions.*`specs\/<name>\.md`/i,
+        /implementation sequence and proof definitions.*plan\.md/i,
+        /current progress and evidence.*state\.json/i,
+        /history.*Git/i,
+        /not stored twice/i,
     ]);
+});
+
+test("plan definitions use stable IDs and contain no operational state", () => {
+    includesAll("planFormat", ["PRE-###", "SC-###", "VAL-###", "globally unique"]);
+    matchesAll("planAuthor", [/plain bullets/i, /MUST NOT write checkboxes or result records/i]);
+    matchesAll("planFormat", [/MUST NOT contain checkboxes, status, Attempt, evidence, Execution sections/i]);
+    assert.doesNotMatch(read("planFormat"), /- \[[ xX]\] <Condition/u);
+});
+
+test("plan creation initializes state only after plan validation", () => {
+    includesAll("plan", ["state CLI `init`", "unsupported plan format"]);
+    matchesAll("plan", [/Initialize state only after plan validation/i, /Never leave a new plan without valid state/i]);
+});
+
+test("normal state API is a small sequential protocol", () => {
+    includesAll("readme", ["`read`", "`init`", "`record`", "`begin`", "`finish`", "`sync-plan`"]);
+    matchesAll("readme", [/single writer/i, /no state revisions, locks, event logs, baselines/i, /state CLI is ordinary code/i]);
+    assert.equal(existsSync(resolve("skills/duckbill-state/SKILL.md")), false);
+    assert.match(read("stateCli"), /usage: state\.mjs read\|init\|sync-plan\|record\|begin\|finish/u);
+    assert.doesNotMatch(read("stateCli"), /expected-revision|begin-attempt|finish-attempt|build-patch|reconcile-plan/u);
+});
+
+test("execution and repair use begin, finish, and stable evidence IDs", () => {
+    includesAll("execute", ["begin --mode execute", "state CLI `finish`", "{id,result,evidence}", "SC-###", "VAL-###"]);
+    includesAll("refineCode", ["begin --mode repair", "state CLI `finish`", "{id,result,evidence}"]);
+    assert.doesNotMatch(`${read("execute")}\n${read("refineCode")}`, /\b(?:patch|revision|lock|baseline|begin-attempt|finish-attempt)\b/u);
+});
+
+test("plan refinement is the only semantic source of affected step IDs", () => {
+    includesAll("refinePlan", ["sync-plan --affected <step-ids|none>", "affected step IDs"]);
+    matchesAll("planRefiner", [/Return affected step IDs and changed definition IDs/i, /do not receive or inspect workflow state/i]);
+    matchesAll("refinePlan", [/If `currentStep` is set.*hashes are current.*route to/i, /Never hand-edit `state\.json`/i]);
+});
+
+test("specification refinement leaves state opaque and unchanged", () => {
+    matchesAll("refineSpec", [/MAY change only the selected specification/i, /do not interpret state/i, /do not persist that derived status/i]);
+    assert.doesNotMatch(read("refineSpec"), /state CLI|state\.mjs|state `read`|state `sync/u);
+});
+
+test("semantic workers cannot read workflow state or invoke workers", () => {
+    for (const name of ["executor", "codeRefiner"]) {
+        matchesAll(name, [/MUST NOT read or change `state\.json`/i, /MUST NOT invoke another worker/i]);
+    }
+    matchesAll("planRefiner", [/do not receive or inspect workflow state/i, /MUST NOT invoke another worker/i]);
+    for (const name of ["plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
+        matchesAll(name, [/sole orchestrator/i]);
+    }
+});
+
+test("semantic workers receive resolved user input without another skill report", () => {
+    for (const name of ["spec", "plan", "refineSpec", "refinePlan", "execute", "refineCode"]) {
+        matchesAll(name, [/resolved user input/i, /direct user answers/i]);
+    }
+    matchesAll("spec", [/Never pass a clarification report into another skill/i]);
+    matchesAll("execute", [/Load `duckbill-step-executor`.*using only canonical artifacts and resolved user input/i]);
+    matchesAll("plan", [/load `duckbill-plan-author`.*specification, verified project facts, and resolved user input/i]);
+    matchesAll("refinePlan", [/load `duckbill-plan-refiner`.*using only canonical artifacts and resolved user input/i]);
+    matchesAll("refineSpec", [/load `duckbill-spec-refiner`.*using only canonical artifacts and resolved user input/i]);
+});
+
+test("executor preflight cannot reach mutation steps", () => {
+    matchesAll("executor", [/Preflight.*procedure steps 1–3.*MUST NOT perform Actions/i]);
+    assert.doesNotMatch(read("executor"), /Preflight.*steps 1–4/u);
+});
+
+test("failed attempts still produce complete criterion evidence", () => {
+    for (const name of ["execute", "refineCode"]) {
+        matchesAll(name, [/close the attempt as (?:`failed`|failed) with a complete `SC-###` result set/i, /unevaluated criterion.*`blocked`/i]);
+    }
+});
+
+test("validation mode enters final validation without a finish transition", () => {
+    matchesAll("execute", [/Enter this step either directly from `validation` mode or after `finish`/i]);
+});
+
+test("architecture ownership distinguishes high-level design from implementation", () => {
+    matchesAll("clarifierPolicy", [/plan.*implementation approach\/architecture/i]);
+    assert.doesNotMatch(read("clarifierPolicy"), /\| plan \| architecture,/u);
+});
+
+test("state validates every object immediately before atomic write", () => {
+    matchesAll("stateCli", [/function atomicWrite\(path, value\).*validateState\(value\).*refusing to write invalid state/i]);
+});
+
+test("orchestration alone owns final plan validation", () => {
+    matchesAll("execute", [/orchestration itself.*every `VAL-###`/i, /No semantic worker decides whether final validation is due/i]);
+    matchesAll("refineCode", [/orchestration itself runs and records the full `VAL-###` set/i]);
+    for (const name of ["executor", "codeRefiner", "executionReport"]) {
+        assert.doesNotMatch(read(name), /Plan Validation|final Validation Checklist|final checklist item|\bVAL-\d/u);
+    }
+});
+
+test("restart recovery uses canonical files and a compact state read", () => {
+    matchesAll("readme", [/new AI session recovers by reading the specification, plan, and compact state summary/i]);
+    matchesAll("readme", [/`read` returns a compact summary/i, /when requested, one step's evidence/i]);
 });

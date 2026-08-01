@@ -7,7 +7,7 @@ Classify an unknown by the artifact whose meaning would change, not where it was
 | Class | Material when different answers change |
 |---|---|
 | specification | behavior/scope, acceptance or failure behavior, data lifecycle/compatibility, contracts, security, or affected application/module |
-| plan | architecture, paths/symbols, steps, dependencies, commands, rollout, risks, or implementation evidence |
+| plan | implementation approach/architecture, paths/symbols, steps, dependencies, commands, rollout, risks, or implementation evidence |
 
 Specification unknowns block specification readiness. Plan-only alternatives do not. Both classes block plan readiness
 when they affect the plan.
@@ -17,7 +17,7 @@ when they affect the plan.
 Read supplied context and inspect only permitted project scope:
 
 - specification facts: existing behavior, contracts, tests, configuration, docs, and project instructions;
-- plan facts: relevant architecture, modules, callers, tests, tools, commands, and conventions.
+- plan facts: relevant implementation architecture, modules, callers, tests, tools, commands, and conventions.
 
 Ask only for missing intent, a user decision, an inaccessible fact, or a choice the repository cannot decide. A common
 default is a recommendation, not permission to assume.

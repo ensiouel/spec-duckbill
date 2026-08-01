@@ -1,10 +1,8 @@
 # Implementation Plan Format
 
-Use for plan authoring and substantial plan refinement.
+The plan stores implementation intent. Plan-local `state.json` stores only progress and evidence.
 
-## Plan Template
-
-Keep this order. Omit Risks or a reference category only when irrelevant.
+## Template
 
 ```markdown
 ---
@@ -33,7 +31,7 @@ spec-file: specs/<name>.md
 
 ## Prerequisites
 
-- [ ] <Condition verified before implementation>
+None.
 
 ## Implementation Steps
 
@@ -55,13 +53,13 @@ spec-file: specs/<name>.md
 
 **Success Criteria:**
 
-- [ ] <Independently provable outcome>
+- **SC-001:** <Independently provable outcome>
 
 **Dependencies:** none
 
 ## Validation Checklist
 
-- [ ] **AC-001:** <Cross-step or requirement-level check>
+- **VAL-001:** <Cross-step or requirement-level check, with mapped requirement ID>
 
 ## Risks and Mitigations
 
@@ -74,118 +72,36 @@ spec-file: specs/<name>.md
 - <Repository path or authoritative source>
 ```
 
-A new plan MUST NOT contain Project Context, Requirement Coverage, `Execution State`, per-step `Execution`, or a plan
-`status` field. All checkboxes start unchecked.
+Replace `None.` with `- **PRE-001:** <condition>` only when implementation has a real prerequisite.
 
-## Ownership and Links
+## Stable identity
 
-Plan intent owns implementation approach/scope, prerequisite text/order, step structure/order, Context, Actions,
-Success Criteria text/order, dependencies, requirement mappings, validation definitions, and risks.
+- Step IDs are stable kebab-case values.
+- Present prerequisites use globally unique `PRE-###` IDs; use `None.` when there are no real prerequisites.
+- Success Criteria use globally unique `SC-###` IDs across the whole plan.
+- Final validation uses globally unique `VAL-###` IDs.
+- Preserve an ID when meaning is unchanged. When meaning changes, retire the old ID and assign a new one.
+- Reordering does not change identity.
 
-Execution state owns prerequisite/criterion/Validation checkmarks, per-step Execution `Status`, `Attempt`, `Files
-Changed`, and global `Base Tree`, `Current Step`, `Attempt`, `Patch`, `Patch Status`. Code/tests/configuration are
-separate implementation artifacts.
+Stable IDs let state reference definitions directly. The state CLI never interprets meaning or uses prose as item
+identity; its content hash ignores reciprocal workflow metadata and detects other document changes.
 
-`spec-file` is immutable plan-level workflow metadata, not intent/state. It MUST identify one canonical existing
-`specs/<name>.md` whose `plan-file` points back. `/duck-plan` alone may establish/restore `spec-file`; refinement MUST
-preserve it and route invalid links before writes. Preserve other valid user frontmatter.
+## Boundaries
 
-## Steps and Identity
+The plan owns approach, scope, prerequisite definitions, steps, Context, Actions, Success Criteria, dependencies,
+requirement mappings, validation definitions, and risks.
 
-Every step has a numbered heading, coherent outcome, unique stable kebab ID, `Requirements`, useful Context, ordered
-Actions, independently provable criteria, and dependencies on earlier IDs or `none`.
+The plan MUST NOT contain checkboxes, status, Attempt, evidence, Execution sections, or current-step fields. New plan
+orchestration creates `state.json` only after the plan passes semantic and structural checks.
 
-- Use numbers only for display; IDs own commands, dependencies, mappings, Current Step, and execution records.
-- Preserve an ID while its logical outcome is unchanged, including wording/order changes.
-- Assign new IDs to new outcomes; retire an ID only when its outcome is removed, split, or merged away.
-- Prefer buildable outcome boundaries and verified paths/symbols over snippets.
-- Criteria MUST directly prove the step outcome. Separate unrelated claims; every clause needs evidence capable of
-  revealing a violation. Boundary/protective behavior needs negative or edge evidence.
+## Traceability
 
-## Requirement Traceability
+- Copy exact `FR`, `NFR`, and `AC` IDs from the specification; never invent or repurpose them.
+- Map each in-scope requirement through a step `Requirements` field or explain it in a `VAL-###` item.
+- Derive coverage when needed; do not persist a coverage table.
 
-- Copy exact `FR`, `NFR`, `AC` IDs from the specification; MUST NOT invent or misattach IDs.
-- Map each in-scope ID through a step `Requirements` field or an ID-prefixed final validation item.
-- Derive coverage by scanning those mappings; MUST NOT persist a coverage table.
+## Criteria quality
 
-## Ordering and Routing
-
-Execute strictly in plan order. The first step without `Execution Status: completed` or with an unchecked criterion is
-the only executable step. New/unexecuted, `partial`, `failed`, and `stale` work routes to `/duck-execute`. A defect in a
-`completed` step routes to `/duck-refine-code` only when governing intent is already correct.
-
-Only `/duck-refine-plan` MAY set `stale`, when prior evidence no longer proves revised plan intent. Specification
-refinement never changes plan state; later manual synchronization determines affected steps, resets obsolete evidence,
-and marks only affected executed steps stale. MUST NOT add Execution merely to mark untouched work stale.
-
-## Step Execution Record
-
-After an attempt, append after Dependencies:
-
-```markdown
-**Execution:**
-
-- Status: completed | partial | failed | stale
-- Attempt: <positive integer>
-- Files Changed: `path`, `path`
-```
-
-Persisted status means:
-
-| Status | Meaning | Writer |
-|---|---|---|
-| `completed` | every criterion currently proven | execute/refine-code |
-| `partial` | implementation changed; some criterion failed/unproven | execute/refine-code |
-| `failed` | attempt produced no intended outcome | execute/refine-code |
-| `stale` | plan refinement invalidated prior evidence | refine-plan only |
-
-Untouched steps MUST NOT have Execution blocks.
-
-## Lazy Execution State
-
-The first `/duck-execute` inserts after Prerequisites:
-
-```markdown
-## Execution State
-
-- Current Step: <step-id>
-- Attempt: 1
-- Base Tree: <git-tree-id>
-- Patch: `specs/plans/<name>/steps/<step-id>.patch`
-- Patch Status: building
-```
-
-The global Attempt MUST equal Current Step's per-step Attempt. On a normal attempt, start from that step's previous
-Attempt or `0` and increment both once. A different current step receives a fresh Base Tree; a retry of the same current
-step reuses its valid Base Tree.
-
-Patch Status forms are exactly:
-
-- `building`: attempt started, patch not finalized;
-- `current`: Patch represents current attempt from Base Tree;
-- `stale`: refine-plan changed Current Step intent while preserving Base Tree;
-- `unavailable: <reason>`: patch build failed.
-
-When a completed Current Step has `unavailable` plus valid Base Tree, `/duck-execute` MAY enter patch recovery: preserve
-implementation, evidence, and Attempt; rebuild only that patch; do not increment Attempt.
-
-`/duck-refine-code` MAY update execution state but MUST NOT change plan intent.
-
-## Final Validation
-
-Validation Checklist owns end-to-end, cross-step, or final-only requirement checks. Every item MUST start with exact
-mapped IDs and name an executable/observable result. Run all items in the same `/duck-execute` invocation that completes
-the last implementation step.
-
-The plan is completed only when every prerequisite, step criterion, and validation item is checked and every step
-status is `completed`. Leave failed/skipped/blocked/unproven items unchecked. Route a selected-step failure to
-`/duck-execute`, another unique completed-step defect to `/duck-refine-code`, higher intent to its refiner, and an
-unknown/external blocker to no command. Recommendations MUST be in `Next`, never hidden in `Status`.
-
-Prerequisite text/order is plan intent; its checkmark is execution state.
-
-## References and Commands
-
-Use repository-relative paths and useful specification anchors. Verify existing paths, symbols, commands, and
-dependencies; label future files. External sources belong in References only when they constrain implementation and
-SHOULD be authoritative.
+Criteria prove outcomes rather than implementation activity. Separate unrelated claims, and include negative or edge
+evidence where a boundary requires it. Verify repository paths, symbols, commands, and dependencies instead of
+guessing them.

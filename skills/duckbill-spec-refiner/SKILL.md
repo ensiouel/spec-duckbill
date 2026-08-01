@@ -30,9 +30,11 @@ Read [references/refinement-checklist.md](references/refinement-checklist.md) be
 ## Boundaries
 
 - MAY modify only the selected specification and MUST preserve its canonical `plan-file`.
-- MUST NOT change plan intent, execution state, patches, code, tests, or configuration; MUST NOT mark steps `stale`.
+- MUST NOT read or change workflow state, plan intent, code, tests, or configuration. Synchronization is derived
+  outside this worker.
 - Invalid reciprocal links and non-specification feedback MUST STOP before all writes and return to the caller.
 - MUST NOT invent product decisions or complete before clarification readiness.
+- MUST NOT invoke another worker or choose a follow-up command.
 
 ## Result
 

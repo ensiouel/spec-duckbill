@@ -21,8 +21,8 @@ Flow:
 2. Treat the full argument as a human-readable name, not a path or feature description.
 3. Load `duckbill-spec-author` in initialization mode. MUST use its script; MUST NOT derive the path, write the file
    manually, inspect the project, or develop the specification.
-4. Verify the draft contains only initialization state and input guidance. MUST NOT create a plan, execution state,
-   patch, or implementation code.
+4. Verify the draft contains only initialization metadata and input guidance. MUST NOT create a plan, workflow state,
+   or implementation code.
 5. Script failure before creation: return `blocked` with no changes. Verification failure after creation: remove only
    this invocation's draft and verify removal. If safe cleanup fails, report the remaining path in `Changed`, use
    `Status: failed; <reason>`, and `Next: none`.

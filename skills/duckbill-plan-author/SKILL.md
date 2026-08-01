@@ -1,6 +1,6 @@
 ---
 name: duckbill-plan-author
-description: Create a new executable plan from a ready technical specification, or restore only an existing plan's reciprocal specification link. Use after specification authoring to map stable requirements into verified, coherent steps; refine existing plan intent with duckbill-plan-refiner.
+description: Create a new executable plan from a ready technical specification, or restore only an existing plan's reciprocal specification link. Use after specification authoring to map stable requirements into verified, coherent steps; existing plan refinement is outside this skill's scope.
 ---
 
 # Duckbill Plan Author
@@ -28,10 +28,12 @@ Create a concise executable roadmap from the governing specification.
 4. Choose coarse coherent steps with `step-design.md`; assign stable IDs and earlier-ID dependencies.
 5. Map every in-scope requirement/acceptance ID through step `Requirements` or an ID-prefixed final validation item.
 6. Require reciprocal specification `plan-file`. Write only the new plan with `spec-file`; MUST NOT update the spec.
-7. Write independently provable Success Criteria. Split unrelated claims and include negative/edge evidence where a
-   boundary requires it. Start every checkbox unchecked.
+7. Assign globally unique stable IDs to every present `PRE-###`, `SC-###`, and `VAL-###` definition. Use `None.` instead
+   of inventing a prerequisite when none exists. Write independently provable definitions as plain bullets. Split
+   unrelated claims and include negative/edge evidence where a boundary requires it. MUST NOT write checkboxes or
+   result records.
 8. Prefer verified paths/symbols over snippets. Re-read the specification and plan; validate IDs, coverage,
-   dependencies, boundaries, paths, commands, risks, criteria, and absent execution records.
+   dependencies, boundaries, paths, commands, risks, criteria, and absent embedded execution state.
 
 ## Boundaries
 
@@ -42,5 +44,6 @@ Create a concise executable roadmap from the governing specification.
 
 ## Result
 
-Return plan path, scope, derived coverage, step count, resolved decisions, first executable step ID, and confirmation
-that execution state was not created. Metadata recovery reports only the backlink and preservation result.
+Return plan path, scope, derived coverage, step count, resolved decisions, and first executable step ID. Confirm that no
+embedded execution state was created; the orchestration caller owns separate state initialization. Metadata recovery
+reports only the backlink and preservation result.

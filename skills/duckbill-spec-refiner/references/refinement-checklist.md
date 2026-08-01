@@ -43,4 +43,4 @@ A line reference supplies context only. Update every affected section, not only 
 - Stable IDs, normative coverage, Technical Design, and resolved decisions remain valid.
 - Conflicts and material unknowns were resolved before saving.
 - Report exact changed requirement IDs and manual plan-synchronization consequences.
-- Plan intent, execution state, patches, code, tests, and configuration are unchanged; no step became `stale`.
+- Plan intent, execution state, code, tests, and configuration are unchanged.

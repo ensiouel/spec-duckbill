@@ -7,8 +7,12 @@ Develop specification `$1`.
 
 Example: `/duck-spec specs/user-authentication.md`
 
-This command MAY change only the selected specification. It MUST NOT create plan intent, execution state, patches,
-tests, or implementation code.
+This command MAY change only the selected specification. It MUST NOT create plan intent, workflow state, tests, or
+implementation code.
+
+Skills are invoked independently by this command. Never pass a clarification report into another skill as context.
+After clarification, the author receives canonical files plus resolved user input: the original request and direct
+user answers, without another skill's analysis or report.
 
 Output MUST be exactly three lines, in order, with nothing else:
 

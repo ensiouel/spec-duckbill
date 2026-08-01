@@ -1,13 +1,13 @@
 # Spec Duckbill
 
-Spec Duckbill is a Pi package for a manually advanced waterfall:
+Spec Duckbill is a Pi package for a manually advanced, spec-driven workflow:
 
 ```text
-spec -> plan -> code
+specification -> plan -> one step at a time -> validation
 ```
 
-One command changes one level, verifies its result, recommends one `Next` action, and stops. The user runs every
-transition manually; Duckbill never invokes the next command.
+Each command changes one semantic level plus its mechanical workflow state, verifies the result, recommends one `Next`
+action, and stops. The user starts every transition; recommendations never run automatically.
 
 ## Installation
 
@@ -17,11 +17,7 @@ pi install https://github.com/ensiouel/spec-duckbill
 
 For local development: `pi install .`
 
-Requirements: Pi, Node.js 20+, and Git. Add generated patches to the target project's `.gitignore`:
-
-```gitignore
-specs/plans/*/steps/*.patch
-```
+Requirements: Pi, Node.js 20+, and Git. Keep plan-local `state.json` tracked in Git.
 
 ## Quick Start
 
@@ -42,51 +38,70 @@ Status: <result and reason>
 Next: <one exact Duckbill command or none>
 ```
 
-Recommendations appear only in `Next`. A command in `Next` is never run automatically.
+## Sources of truth
 
-## Ownership
-
-| Level | Owns | Commands |
+| Concern | Source | Owner |
 |---|---|---|
-| specification intent | scope, behavior/constraints, contracts, data, security, acceptance, high-level design | `/duck-spec`, `/duck-refine-spec` |
-| plan intent | implementation approach/scope, prerequisites, steps, Actions, Success Criteria, dependencies, mappings, validation, risks | `/duck-plan`, `/duck-refine-plan` |
-| execution state | checkmarks, step Status/Attempt/Files Changed, Base Tree, Current Step, Patch state | `/duck-execute`; refiners only as allowed |
-| implementation code | project code, tests, and step implementation files | `/duck-execute`, `/duck-refine-code` |
+| required behavior and decisions | `specs/<name>.md` | specification commands |
+| implementation sequence and proof definitions | `specs/plans/<name>/plan.md` | plan commands |
+| current progress and evidence | `specs/plans/<name>/state.json` | deterministic state CLI through orchestration |
+| implementation | project code, tests, and configuration | execution/repair commands |
+| history | Git | project workflow |
 
-Execution state is stored in the plan but is not plan intent. New plans omit execution records; `/duck-execute` creates
-them lazily.
+The plan contains stable `PRE-###`, `SC-###`, and `VAL-###` definitions. It does not contain checkmarks, attempts,
+status, or evidence. `state.json` refers to those IDs and stores only:
 
-The frontmatter links are reciprocal workflow metadata: the specification owns `plan-file`; the plan owns `spec-file`.
-`/duck-spec` and `/duck-plan` may restore only their own link. Refinement commands preserve links and route invalid
-metadata to its owner.
+- the schema version and current specification/plan hashes;
+- one optional running step;
+- attempts and step outcomes;
+- prerequisite, criterion, and validation evidence.
 
-## Routing
+Current routing, completeness, coverage, and changed files are computed when needed. They are not stored twice.
 
-| Situation | Next |
-|---|---|
-| specification changed | manual `/duck-refine-plan`, or `/duck-plan` when absent |
-| plan intent changed | first affected `/duck-execute` |
-| new/unexecuted, `partial`, `failed`, or `stale` step | `/duck-execute` |
-| code defect in a `completed` step with correct documents | `/duck-refine-code` |
-| specification-level feedback in a lower command | `/duck-refine-spec` |
-| plan-level feedback in a code command | `/duck-refine-plan` |
-| material unknown or external action | clarify/act first; `Next: none` |
+## Simple state protocol
 
-`/duck-refine-spec` changes only specification intent. It reports changed requirement IDs but does not synchronize the
-plan or mark steps stale.
+The workflow assumes a single writer and one running command. There are no state revisions, locks, event logs,
+baselines, or background transitions. Every state write validates the whole file and replaces it atomically.
 
-`/duck-refine-plan` changes plan intent and only the execution state needed to keep evidence truthful. During manual
-synchronization it preserves stable IDs for unchanged outcomes, marks affected executed steps `stale`, and resets
-invalidated evidence. It never edits specification or code.
+Normal orchestration uses six operations:
 
-`/duck-execute` implements exactly the first executable step and stops. `/duck-refine-code` repairs only a `completed`
-step whose specification and plan intent already describe the correct behavior. Neither command may change intent.
+```text
+read -> init | record | begin -> finish | sync-plan
+```
 
-All mutable commands classify ownership, permissions, and material unknowns before writing. A `blocked` result changes
-no files or execution state.
+Commands invoke `scripts/state.mjs` directly with `--plan <plan-file>` and `--repo <repository-root>` plus the explicit
+IDs, mode, outcome, scope, affected IDs, or evidence required by that operation.
 
-Command-result Status prefixes are `draft | ready | completed | partial | failed | blocked | unchanged`. Persisted step
-Status is `completed | partial | failed | stale`; only `/duck-refine-plan` writes `stale`.
+- `read` returns a compact summary and, when requested, one step's evidence. Write operations return small receipts,
+  not the complete state object.
+- `init` creates state for a new clean plan.
+- `record` replaces the complete prerequisite or final-validation evidence set.
+- `begin` opens one sequential execution or repair attempt.
+- `finish` records its outcome and the complete selected-step criterion evidence set.
+- `sync-plan` reconciles state after a semantically validated plan change.
+
+Specification or plan content hash changes block execution until the plan is synchronized. Reciprocal `plan-file` and
+`spec-file` metadata are excluded from those hashes. A plan refiner reports affected step IDs; deterministic code
+resets only those steps and any completed step whose criterion IDs no longer match.
+
+Persisted outcomes are `completed | partial | failed`. Check results are `passed | failed | blocked`. `running`, the
+first pending step, and overall completion are derived.
+
+An interrupted attempt is resumed through `/duck-execute` from canonical specification and plan intent. The state does
+not store prompts, feedback text, or an AI conversation.
+
+## Skill isolation
+
+Commands orchestrate; skills do not form a call graph.
+
+- A skill never invokes, imports, reads, or names another skill.
+- A semantic worker receives canonical project artifacts and resolved user input, not another worker's report or state.
+- Orchestration owns routing and normalizes proven evidence.
+- The state CLI is ordinary code, not a semantic skill. It accepts only explicit paths, IDs, modes, outcomes, and
+  complete evidence records.
+
+A new AI session recovers by reading the specification, plan, and compact state summary rather than reconstructing
+progress from chat history.
 
 ## Refinement Syntax
 
@@ -102,26 +117,24 @@ A line reference adds context; it does not grant edit permission.
 
 ```text
 specs/
-├── <name>.md                         # plan-file: specs/plans/<name>/plan.md
+├── <name>.md
 └── plans/<name>/
-    ├── plan.md                       # spec-file: specs/<name>.md
-    └── steps/<step-id>.patch
+    ├── plan.md
+    └── state.json
 ```
 
-Specifications use stable `FR-`, `NFR-`, and `AC-` IDs. Plans map them to stable step IDs, execute in order, and keep
-one isolated patch per step.
-
-Patches compare an attempt with its captured working-tree baseline; they are not cumulative. Re-entering a non-current
-step captures a fresh baseline and replaces only that step's patch. The builder uses a temporary Git index and creates
-no commit, branch, stash, or worktree. It excludes the governing specification, plan, and generated patches—not the
-whole `specs/` tree. Patches are review artifacts, not backups.
+Plans with embedded execution fields are unsupported. State format version 1 fails closed on corrupt or
+unknown-version files.
 
 ## Development
 
 ```bash
-node --test
+node --test test/init-spec.test.mjs
+node --test test/skill-isolation.test.mjs
+node --test test/state-inspection.test.mjs
+node --test test/workflow-contract.test.mjs
+node --check scripts/state.mjs
 node --check skills/duckbill-spec-author/scripts/init-spec.mjs
-node --check skills/duckbill-step-patch/scripts/step-patch.mjs
 ```
 
 ## License
