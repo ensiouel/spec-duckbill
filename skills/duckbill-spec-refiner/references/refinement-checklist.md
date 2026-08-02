@@ -4,10 +4,10 @@
 
 | Class | Changes | Action |
 |---|---|---|
-| specification-level | scope, behavior/constraints, contracts, data, security, acceptance, high-level design | refine specification |
-| plan-level | implementation approach, steps, Actions, criteria, dependencies, mappings, order | route without writes |
-| code defect | code violates correct specification and plan intent | route without writes |
-| material unknown | owner or intended behavior is unclear | clarify without writes |
+| `specification-level` | scope, behavior/constraints, contracts, data, security, acceptance, high-level design | refine specification |
+| `plan-level` | implementation approach, steps, Actions, criteria, dependencies, mappings, order | stop without writes |
+| `code-defect` | code violates correct specification and plan intent | stop without writes |
+| `material-unknown` | owner or intended behavior is unclear | stop without writes |
 
 Only specification-level feedback MAY change the specification.
 
@@ -42,5 +42,5 @@ A line reference supplies context only. Update every affected section, not only 
 - Feedback is represented as behavior/constraint; all related sections agree.
 - Stable IDs, normative coverage, Technical Design, and resolved decisions remain valid.
 - Conflicts and material unknowns were resolved before saving.
-- Report exact changed requirement IDs and manual plan-synchronization consequences.
-- Plan intent, execution state, code, tests, and configuration are unchanged.
+- Record exact changed requirement IDs and manual plan-synchronization consequences in the internal result.
+- Plan intent, workflow state, code, tests, and configuration are unchanged.

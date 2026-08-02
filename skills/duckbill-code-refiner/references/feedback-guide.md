@@ -7,15 +7,16 @@ behavior is absent from governing intent, classify the level before writes.
 
 | Class | Boundary | Result |
 |---|---|---|
-| code defect | a `completed` step's code violates already-correct specification and plan intent | correct code |
-| plan-level change | approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies, validation, risks, mappings, or structure must change | stop; return classification |
-| specification-level change | scope, behavior/constraints, contracts, data, security, acceptance, or high-level design must change | stop; return classification |
-| material unknown | expected behavior or owner cannot be established | stop; return unknown |
+| `code-defect` | a `completed` step's code violates already-correct specification and plan intent | correct code |
+| `execution-work` | the step is new/unexecuted, `partial`, or `failed` | stop without writes |
+| `plan-level` | approach/scope, prerequisite text/order, Context, Actions, criteria text/order, dependencies, validation, risks, mappings, or structure must change | stop without writes |
+| `specification-level` | scope, behavior/constraints, contracts, data, security, acceptance, or high-level design must change | stop without writes |
+| `material-unknown` | expected behavior or owner cannot be established | stop without writes |
 
-MUST STOP without mutations for every non-code class. A new/unexecuted, `partial`, or `failed` step is
-execution work; return that classification to the caller even when feedback calls it a defect.
+MUST STOP without mutations for every non-code class, even when feedback calls `execution-work` a defect.
 
-If current code already satisfies governing intent, return unchanged. The worker never updates attempts or state.
+If current code already satisfies governing intent, classify it as `already-satisfied` and keep it unchanged. Never
+update attempts or workflow state.
 
 Boundary example: “Preserve the original error cause” is code-only when the plan already requires it. “Split hashing
 from registration into a reusable service” changes plan intent and requires later manual execution.
@@ -29,11 +30,10 @@ or proving a change.
 ## Validation
 
 - Re-run checks related to changed behavior.
-- Return each selected-step criterion in plan order as `{id,result,evidence}`. `passed` requires current direct evidence
+- Record each selected-step criterion in plan order as `{id,result,evidence}`. `passed` requires current direct evidence
   for every claim; use only its stable `SC-###` ID as identity.
 - Use `completed` only when all criteria pass; `partial` when code changed but proof remains incomplete; `failed` when
   no intended correction was produced.
-- Inspect the code diff; report unavailable checks; confirm specification and plan intent unchanged.
+- Inspect the code diff; record unavailable checks; confirm specification and plan intent unchanged.
 
-The caller owns workflow-state persistence and routing. This worker neither receives another
-skill's output nor invokes another worker.
+The active command owns workflow-state persistence, routing, and the terminal result. Never invoke another module.

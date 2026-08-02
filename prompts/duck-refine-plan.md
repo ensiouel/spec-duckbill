@@ -7,37 +7,56 @@ Refine plan `$1`, target `$2`, from feedback `${@:3}`.
 
 Example: `/duck-refine-plan specs/plans/user-auth/plan.md hash-password Split hashing from registration`
 
-This command MAY change `plan.md` and mechanically synchronize plan-local `state.json`. It MUST preserve `spec-file`
-and MUST NOT change specification intent, implementation code, tests, or configuration.
+## Permissions
 
-Output MUST be exactly three lines, in order, with nothing else:
+MAY change selected `plan.md` and mechanically synchronize `state.json`. MUST preserve `spec-file` and MUST NOT change
+specification intent, implementation, tests, or configuration. Use the `duckbill-state` CLI as the only state interface.
 
-```text
-Changed: <plan.md, state.json, or none>
-Status: <result and reason>
-Next: <one exact Duckbill command or none>
-```
+## Clarification
 
-## Isolation invariant
-
-Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
-load workers independently and give them only canonical artifacts and resolved user input—the original feedback plus
-direct user answers—never workflow state or another worker's report.
+If material specification or planning intent is missing, return only focused tagged questions and stop before writes.
+Resume after the answer; omit the terminal result while waiting.
 
 ## Flow
 
-1. Missing argument: return `blocked; usage: /duck-refine-plan <plan-file> <step|whole> <feedback>` with no changes.
-2. Resolve a canonical plan, optional valid line fragment, and target `whole` or one stable step ID. Require reciprocal
-   specification/plan links. Refinement never repairs metadata.
-3. Read state. Missing state routes to `/duck-plan`; invalid plan or state blocks. If `currentStep` is set while plan
-   and specification hashes are current, stop and route to `/duck-execute <plan-file> <currentStep>`. If either hash
-   changed, continue to synchronization.
-4. Load `duckbill-clarifier` independently only for a material ambiguity in the original feedback. Load
-   `duckbill-plan-refiner` independently in preflight using only canonical artifacts and resolved user input. Continue
-   for a plan-level change or specification synchronization. Route specification changes, governed code defects, and
-   material unknowns to their owner without writes.
-5. Authorize the worker to update only `plan.md`, obtain its affected step IDs, and validate the result.
-6. After validation, call the state CLI `sync-plan --affected <step-ids|none>`.
-7. If validation or synchronization fails, restore the exact `plan.md` preimage. Never hand-edit `state.json`.
-8. Re-read plan and state. Changed or newly pending work routes to the first exact `/duck-execute` command. A
-   synchronized complete plan returns `Next: none`. Never run the recommendation automatically.
+### 1. Resolve and inspect
+
+Require feedback, canonical `specs/plans/<name>/plan.md` with optional valid line fragment, and target `whole` or one
+stable step ID. Require exact reciprocal `spec-file: specs/<name>.md` and
+`plan-file: specs/plans/<name>/plan.md`; refinement never repairs metadata.
+
+Call state `read`:
+
+- Missing state routes to `/duck-plan <spec-file>`; invalid plan/state is `blocked` without repair.
+- A `currentStep` with current hashes routes to its exact `/duck-execute` command.
+- `plan-changed` or `spec-changed` continues to synchronization preflight.
+
+### 2. Clarify and preflight
+
+Use `duckbill-clarifier` readiness mode with `both` scope only for material ambiguity; after an answer, run answer-review
+before rechecking readiness. Then use `duckbill-plan-refiner` preflight mode with plan, specification,
+feedback/references, project instructions, verified facts, and resolved input.
+
+Continue only for plan-level work or specification synchronization. Return specification work, governed code defects,
+and unresolved ownership to their exact owning command when known; do not write.
+
+### 3. Refine, persist, and verify
+
+Use `duckbill-plan-refiner` refinement mode to update only the plan. Validate before supplying only its
+`affectedStepIds` to state `sync-plan --affected <step-ids|none>`; `changedDefinitionIds` are informational. On
+validation/synchronization failure, restore the exact plan preimage. Never hand-edit state; re-read plan and state after
+success.
+
+### 4. Report
+
+Route pending work to the final state's first exact `/duck-execute`; a synchronized complete plan uses `Next: none`.
+
+## Terminal result
+
+Never execute `Next`. On a terminal outcome output exactly:
+
+```text
+Changed: <none or sorted paths changed by this invocation>
+Status: <completed|failed|blocked|unchanged>; <reason>
+Next: <one exact Duckbill command or none>
+```

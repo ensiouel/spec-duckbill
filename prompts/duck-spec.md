@@ -7,39 +7,52 @@ Develop specification `$1`.
 
 Example: `/duck-spec specs/user-authentication.md`
 
-This command MAY change only the selected specification. It MUST NOT create plan intent, workflow state, tests, or
-implementation code.
+## Permissions
 
-This command is the sole orchestrator. Load skills independently. Give the author only canonical files and resolved
-user input—the original request plus direct user answers—never another skill's report.
+MAY change only the selected specification. MUST NOT create or change plan intent, state, implementation, tests, or
+configuration.
 
-Output MUST be exactly three lines, in order, with nothing else:
+## Clarification
+
+If a material specification decision is missing, return only focused `[spec]` questions and stop before writes. Resume
+after the answer; omit the terminal result while waiting.
+
+## Flow
+
+### 1. Resolve
+
+Require one existing regular `specs/<name>.md` with no line fragment. Its canonical plan path is
+`specs/plans/<name>/plan.md`. Invalid input is `blocked` with no changes.
+
+### 2. Inspect
+
+Read applicable project instructions and only context needed to verify specification facts.
+
+- For a developed specification with a missing/wrong `plan-file`, use `duckbill-spec-author` metadata-recovery mode to
+  restore only the canonical link. Verify all other artifacts unchanged; report `completed` and
+  `/duck-plan <spec-file>`.
+- For a developed specification with the canonical link, report `unchanged; specification is already developed` and the
+  same `Next`.
+- Otherwise, require `status: draft` and substantive input beyond `[WRITE HERE]`; missing input is `blocked`.
+
+### 3. Clarify and author
+
+Use `duckbill-clarifier` readiness mode with `specification` scope; after an answer, run answer-review before rechecking
+readiness. Then use `duckbill-spec-author` authoring mode with the draft, verified facts, project instructions, and
+resolved input.
+
+### 4. Verify and report
+
+Require the specification quality gate, stable requirement IDs, canonical `plan-file`, and unchanged plan, state,
+implementation, tests, and configuration. Success is `completed; specification is ready` with
+`Next: /duck-plan <spec-file>`. Every terminal `blocked` result leaves files unchanged.
+
+## Terminal result
+
+Never execute `Next`. On a terminal outcome output exactly:
 
 ```text
-Changed: <changed file or none>
-Status: <result and reason>
+Changed: <none or sorted paths changed by this invocation>
+Status: <completed|failed|blocked|unchanged>; <reason>
 Next: <one exact Duckbill command or none>
 ```
-
-Flow:
-
-1. Empty path: return `blocked; usage: /duck-spec <spec-file>` with `Changed: none` and `Next: none`.
-2. Require one existing repository-relative Markdown file; otherwise return `blocked` with no changes. Derive
-   `specs/plans/<name>/plan.md` from its filename.
-3. For an already-developed specification:
-   - missing or wrong `plan-file`: metadata-recovery mode MUST change only that field to the canonical path, verify all
-     other artifacts unchanged, and return `completed; canonical plan link restored`;
-   - canonical `plan-file`: return `unchanged; specification is already developed`.
-   In both cases use `Next: /duck-plan <spec-file>`; `/duck-plan` owns existing-plan routing. Do not author further.
-4. Otherwise require `status: draft` and substantive input beyond `[WRITE HERE]`. Missing input returns
-   `blocked; substantive specification input is required`, `Changed: none`, `Next: none`.
-5. Read applicable project instructions and only the context needed to verify specification facts. Load
-   `duckbill-clarifier` for specification readiness. A material unknown blocks before writes and returns its concise
-   question with `Next: none`.
-6. Load `duckbill-spec-author` in authoring mode with canonical artifacts and resolved user input. Author the
-   specification in place; do not invoke `/duck-plan`.
-7. Re-read the specification and require the author quality/readiness checks, stable requirement IDs, canonical
-   `plan-file`, and unchanged plan and code.
-8. Success returns `Status: ready; specification intent verified` and `Next: /duck-plan <spec-file>`.
-
-Every blocked result leaves all files unchanged. Put recommendations only in `Next`; never run them automatically.

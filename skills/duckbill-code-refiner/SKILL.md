@@ -1,6 +1,6 @@
 ---
 name: duckbill-code-refiner
-description: Repair a completed step's implementation from feedback while preserving specification and plan intent; the caller may update execution state. Route pending, partial, or failed work to execution and higher-level feedback to its owning refinement command.
+description: Internal Duckbill module; use only when an active Duckbill command selects preflight or correction of a completed step under unchanged specification and plan intent. Never use standalone or to change either artifact's intent.
 ---
 
 # Duckbill Code Refiner
@@ -13,32 +13,41 @@ Read [references/feedback-guide.md](references/feedback-guide.md) before classif
 
 ## Modes
 
-- **Preflight:** perform classification and read-only checks only. MUST NOT edit files or execution state.
-- **Correction:** enter only after the caller independently confirms permissions, order, and clarification readiness.
+- **Preflight:** perform procedure steps 1–3 without writes or workflow-state access.
+- **Correction:** enter only after the active command establishes permission, order, and material readiness; perform
+  steps 4–6.
 
 ## Procedure
 
-1. Apply the reference classification. Continue only for a defect in one `completed` step. Return already-satisfied
-   feedback unchanged; route other execution states or intent levels without writes.
+1. Apply the reference classification. Continue only for a defect in one `completed` step. Classify already-satisfied
+   feedback as unchanged and every other step outcome or intent level without writes.
 2. Read governing requirement IDs, step intent, feedback references, and current implementation.
 3. Confirm the expected behavior is already required.
 4. Apply the smallest complete correction. Include related files only when required for
    correct behavior/build. Diagnose failures caused by the repair.
 5. Re-evaluate every selected-step criterion in exact order.
-6. Inspect the final diff and report current evidence.
+6. Inspect the final diff and record current evidence.
 
 ## Boundaries
 
 - MUST NOT modify specification intent or plan intent and MUST NOT read or change `state.json`.
-- MUST preserve approach/scope, prerequisite text/order, context, Actions, criteria text/order, dependencies,
-  validation definitions, risks, structure, and mappings.
 - Higher-level or material-unknown feedback MUST STOP before all writes.
 - Referenced files are context, not edit permission. MUST NOT touch unrelated code or overwrite valid user changes.
 - MUST NOT report a criterion as passed when current evidence no longer proves it.
-- MUST NOT invoke another worker or choose a follow-up command. Return only to the caller.
+- MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
+  command owns those concerns, workflow-state writes, derived coverage, and plan-level validation.
 
 ## Result
 
-Return the defect, changed files, checks, complete ordered evidence keyed by stable criterion ID, and confirmation that
-specification and plan intent were unchanged. The calling prompt owns execution-state writes, derived requirement
-coverage, plan-level validation, strict footer, and `Next`.
+Produce a compact internal result with these labels:
+
+- `classification`: `code-defect|already-satisfied|execution-work|plan-level|specification-level|material-unknown`;
+- `outcome`: `completed|partial|failed|unchanged|blocked`;
+- `defect`: governed behavior violated, or `none`;
+- `changedPaths`: sorted repository-relative paths, or `none`;
+- `checksRun`: commands or inspections with result and evidence, or `none`;
+- `criteria`: every selected-step criterion in plan order as `{id,result,evidence}`;
+- `blockers`: conditions that prevented correction or proof, or `none`;
+- `unverifiedItems`: skipped or unavailable checks, or `none`;
+- `materialUnknowns`: unresolved intent/ownership, or `none`;
+- `intentPreserved`: `true|false`.

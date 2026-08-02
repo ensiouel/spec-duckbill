@@ -27,5 +27,5 @@ section or save uncertainty as an assumption.
 ## STOP and Clarify
 
 STOP when the affected component is unknown, repository behavior contradicts the specification, dirty work materially
-changes the plan, or unresolved architectural choices produce materially different steps. Classify the owner and return
-the unknown to the caller.
+changes the plan, or unresolved architectural choices produce materially different steps. Classify the owner and expose
+the unknown in the internal result.

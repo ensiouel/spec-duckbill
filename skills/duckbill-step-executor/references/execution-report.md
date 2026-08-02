@@ -1,4 +1,13 @@
-# Step Execution Evidence and Report
+# Step Execution Evidence
+
+## Boundary Classification
+
+| Class | Boundary | Result |
+|---|---|---|
+| `execution` | the selected step can be implemented under unchanged specification and plan intent | execute |
+| `plan-level` | approach, scope, prerequisites, Context, Actions, criteria, dependencies, validation, risks, mappings, or structure must change | stop without writes |
+| `specification-level` | behavior, scope, constraints, contracts, data, security, acceptance, or high-level design must change | stop without writes |
+| `material-unknown` | required intent or ownership cannot be established | stop without writes |
 
 ## Evidence
 
@@ -26,39 +35,18 @@ reuse prior evidence after related code changes.
 | `partial` | implementation changed; at least one criterion failed/unproven |
 | `failed` | no intended implementation outcome was produced |
 
-## Report Template
+## Internal Result
 
-```markdown
-## Step Execution: <step ID, number, title>
+Produce labeled fields, not a standalone Markdown report:
 
-**Status:** completed | partial | failed
+- `classification`: `execution|plan-level|specification-level|material-unknown`;
+- `outcome`: `completed|partial|failed|blocked`;
+- `changedPaths`: sorted repository-relative paths, or `none`;
+- `checksRun`: commands or inspections with result and evidence, or `none`;
+- `criteria`: every selected-step criterion in plan order as `{id,result,evidence}`;
+- `blockers`: conditions that prevented implementation or proof, or `none`;
+- `unverifiedItems`: skipped or unavailable checks, or `none`;
+- `materialUnknowns`: unresolved intent/ownership, or `none`.
 
-### Summary
-
-<Implemented result.>
-
-### Files Changed
-
-- Created: <paths or None>
-- Modified: <paths or None>
-- Deleted: <paths or None>
-
-### Commands and Checks
-
-- `<command>` - passed | failed: <reason>
-- Inspection - <evidence>
-
-### Success Criteria
-
-- SC-001 — passed | failed | blocked: <evidence>
-
-### Blockers and Assumptions
-
-- <item or None>
-```
-
-The caller owns plan-level validation, the strict three-line command result, and `Next`; MUST NOT add a next-command
-recommendation here.
-
-MUST preserve requirement mappings and all plan intent. Report selected-step evidence only; do not derive plan-wide
-coverage or persist workflow state.
+Preserve all plan intent and requirement mappings. Include selected-step evidence only; do not derive plan-wide coverage
+or persist workflow state. The active command owns those concerns, routing, and the terminal result.

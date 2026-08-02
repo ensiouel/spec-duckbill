@@ -7,53 +7,74 @@ Execute step `$2` from plan `$1`.
 
 Example: `/duck-execute specs/plans/user-auth/plan.md hash-password`
 
-This command MAY change implementation code, tests, and plan-local `state.json`. It MUST NOT change specification or
-plan intent.
+## Permissions
 
-Output MUST be exactly three lines, in order, with nothing else:
+MAY change implementation, tests, governed configuration, and plan-local `state.json`. MUST NOT change specification or
+plan intent. Use the `duckbill-state` CLI as the only state interface.
 
-```text
-Changed: <implementation files, tests, state.json, or none>
-Status: <result and reason>
-Next: <one exact Duckbill command or none>
-```
+## Clarification
 
-## Isolation invariant
-
-Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
-load workers independently and give them only canonical artifacts, the selected step ID, and resolved user input with
-relevant direct user answers—never workflow state or another worker's report. Pass only explicit operations and
-normalized `{id,result,evidence}` records to the state CLI.
+If preflight finds a material specification, plan, or user decision, use `duckbill-clarifier` readiness mode with the
+needed scope and return only focused tagged questions. After an answer, run answer-review before rechecking readiness.
+Stop before `begin` or implementation writes and omit the terminal result while waiting.
 
 ## Flow
 
-1. Missing argument: return `blocked; usage: /duck-execute <plan-file> <step-id>` with no changes.
-2. Require canonical `specs/plans/<name>/plan.md`, one stable step ID, and reciprocal specification/plan links. Invalid
-   input blocks without writes.
-3. Read state for the selected step:
-   - missing state routes to `/duck-plan <spec-file>`; invalid plan or state blocks without repair;
-   - `plan-changed` or `spec-changed` routes to `/duck-refine-plan <plan-file> whole Synchronize the plan with its specification`;
-   - `complete` returns unchanged with `Next: none`;
-   - `validation` continues at step 8;
-   - a different `currentStep` or earlier pending step returns its exact `/duck-execute` command;
-   - the selected `currentStep` resumes its existing attempt; otherwise the selected ID MUST equal `firstPendingStep`.
-4. Read project instructions, the selected plan step, its mapped specification intent, dependencies, and current code.
-   Verify all prerequisites directly. If their stored results are incomplete or no longer credible, use the state CLI
-   to record the full `PRE-###` result set. Any failed or blocked prerequisite stops before an attempt.
-5. Load `duckbill-step-executor` independently in preflight mode using only canonical artifacts and resolved user input.
-   Stop before writes for specification intent, plan intent, or a material unknown and return the owning refinement
-   command when one exists.
-6. If this is not a resumed attempt, call the state CLI `begin --mode execute`. After it succeeds, load the executor in
-   execution mode and implement exactly the selected step. A resumed attempt uses the same worker without another
-   `begin`.
-7. Build the complete `SC-###` result set. If a higher-level mismatch appeared after `begin`, preserve evaluated
-   evidence, mark every unevaluated criterion `blocked`, call `finish` with `failed`, and route to its owner. Otherwise
-   call the state CLI `finish` with `completed|partial|failed`.
-8. Enter this step either directly from `validation` mode or after `finish`, then re-read state. When all steps are
-   completed, orchestration itself reverifies prerequisites, runs every `VAL-###` item against the combined
-   implementation, and records the complete validation result set. No semantic worker decides whether final validation
-   is due. Final validation does not edit implementation. Classify failures by owning step, plan, specification, or
-   external blocker.
-9. Re-read changed artifacts and state; never hand-edit state. Return `completed|partial|failed; <step and overall
-   result>`. `Next` is the first pending step, owning refinement or repair command, the interrupted current step, or
-   `none`. Never run the recommendation automatically.
+### 1. Resolve and inspect state
+
+Require canonical `specs/plans/<name>/plan.md`, one existing stable step ID, and exact reciprocal link with
+`specs/<name>.md`. Invalid input is `blocked` with no changes.
+
+Call state `read --step <step-id>` and take the first matching route:
+
+| State                       | Result/action                           |
+|-----------------------------|-----------------------------------------|
+| missing                     | `blocked`; `/duck-plan <spec-file>`     |
+| invalid                     | `blocked`; `Next: none`                 |
+| plan/spec changed           | `blocked`; plan synchronization command |
+| `complete`                  | `unchanged`; `Next: none`               |
+| `validation`                | final validation                        |
+| different `currentStep`     | `unchanged`; execute it                 |
+| earlier `firstPendingStep`  | `unchanged`; execute it                 |
+| selected `currentStep`      | resume without `begin`                  |
+| selected `firstPendingStep` | continue                                |
+
+Every routed `Next` uses the exact Duckbill command.
+
+### 2. Verify prerequisites and preflight
+
+Read project instructions, selected/mapped intent, dependencies, and current code. When stored prerequisite proof is
+absent or stale, evaluate and record every ordered `PRE-###`. Stop before `begin` on failed/blocked prerequisites.
+
+Use `duckbill-step-executor` preflight mode with the selected step, governing specification, current implementation, and
+resolved input. Continue only within unchanged specification and plan intent; otherwise route to the exact owner.
+
+### 3. Execute and persist
+
+For a new attempt call state `begin --step <step-id> --mode execute`; a resumed attempt skips it. Use
+`duckbill-step-executor` execution mode for only the selected step.
+
+Use its ordered `criteria` as the complete `{id,result,evidence}` set passed to `finish`. If higher-level
+mismatch appears after `begin`, preserve evaluated evidence, mark unevaluated criteria `blocked`, and finish `failed`;
+otherwise finish `completed`, `partial`, or `failed` from evidence.
+
+### 4. Final validation
+
+Enter from state `validation` or after `finish`, then re-read state. When all steps are completed, reverify
+prerequisites and evaluate/record every `VAL-###` against the combined implementation without editing it. Classify
+failures by owner.
+
+### 5. Report
+
+Re-read changed artifacts/state. `Next` is the first pending step, exact owning refinement/repair command, interrupted
+current step, or `none`.
+
+## Terminal result
+
+Never execute `Next`. On a terminal outcome output exactly:
+
+```text
+Changed: <none or sorted paths changed by this invocation>
+Status: <completed|partial|failed|blocked|unchanged>; <step and overall result>
+Next: <one exact Duckbill command or none>
+```

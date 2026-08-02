@@ -1,51 +1,79 @@
 ---
 description: Repair a completed step without changing specification or plan intent
-argument-hint: "<plan-file>[#L<line>[-<end>]] <step> <feedback>"
+argument-hint: "<plan-file> <step-id> <feedback>"
 ---
 
 Repair completed step `$2` in plan `$1` from feedback `${@:3}`.
 
 Example: `/duck-refine-code specs/plans/user-auth/plan.md hash-password src/auth/password.go#L42 Preserve the error cause`
 
-This command MAY change implementation code, tests, and plan-local `state.json`. It MUST preserve specification and
-plan intent.
+## Permissions
 
-Output MUST be exactly three lines, in order, with nothing else:
+MAY change implementation, tests, governed configuration, and plan-local `state.json`. MUST preserve specification and
+plan intent. References are context, not edit permission. Use the `duckbill-state` CLI as the only state interface.
 
-```text
-Changed: <implementation files, tests, state.json, or none>
-Status: <result and reason>
-Next: <one exact Duckbill command or none>
-```
+## Clarification
 
-## Isolation invariant
-
-Load `duckbill-state` independently and use only its bundled deterministic CLI. This command is the sole orchestrator:
-load workers independently and give them only canonical artifacts, the selected step ID, and resolved user input—the
-original feedback plus direct user answers—never workflow state or another worker's report. Pass only explicit
-operations and normalized `{id,result,evidence}` records to the state CLI.
+If preflight finds a material specification, plan, or user decision, use `duckbill-clarifier` readiness mode with the
+needed scope and return only focused tagged questions. After an answer, run answer-review before rechecking readiness.
+Stop before `begin` or implementation writes and omit the terminal result while waiting.
 
 ## Flow
 
-1. Missing argument: return `blocked; usage: /duck-refine-code <plan-file> <step> <feedback>` with no changes.
-2. Resolve one canonical plan, optional valid line fragment, one stable step ID, valid feedback references, and
-   reciprocal specification/plan links. Invalid input blocks without writes.
-3. Read state for the selected step. Missing state routes to `/duck-plan`; invalid plan or state blocks; changed plan or
-   specification routes to plan refinement. Any `currentStep` or earlier pending step takes precedence and routes to `/duck-execute`.
-   Continue only when the selected step is completed.
-4. Read instructions, selected plan intent, mapped specification intent, referenced code, and current implementation.
-   Reverify prerequisites and use the state CLI to record the complete `PRE-###` set when its stored proof is incomplete
-   or no longer credible. Stop before repair if any prerequisite fails or is blocked.
-5. Load `duckbill-code-refiner` independently in preflight mode using no state output. Continue only for a governed code
-   defect. Already-satisfied feedback is unchanged; plan/specification changes route to their owning refinement;
-   material unknowns block without writes.
-6. Call the state CLI `begin --mode repair`. Then load the worker in correction mode, apply the smallest governed repair,
-   and re-evaluate every selected-step criterion.
-7. Build the complete `SC-###` result set. If a higher-level mismatch appeared after `begin`, preserve evaluated
-   evidence, mark every unevaluated criterion `blocked`, call `finish` with `failed`, and route to its owner. Otherwise
-   call the state CLI `finish` with `completed|partial|failed`.
-8. Re-read changed artifacts and state and verify specification and plan intent stayed unchanged. If all steps are
-   completed, orchestration itself runs and records the full `VAL-###` set; the code-refiner never owns plan completion
-   or another step. Route validation failures to their owning step, plan, specification, or external blocker.
-9. Return `completed|partial|failed; <step and plan result>`. `Next` is the first pending step, owning refinement, or
-   `none`. Never run the recommendation automatically.
+### 1. Resolve and inspect state
+
+Require feedback, canonical `specs/plans/<name>/plan.md`, one stable step ID, valid optional feedback line references,
+and exact reciprocal link with `specs/<name>.md`. Invalid input is `blocked` with no changes.
+
+Call state `read --step <step-id>` and take the first matching route:
+
+| State | Result |
+|---|---|
+| missing | `blocked`; `/duck-plan <spec-file>` |
+| invalid | `blocked`; `Next: none` |
+| plan/spec changed | `blocked`; plan synchronization command |
+| any `currentStep` | `unchanged`; execute it |
+| earlier `firstPendingStep` | `unchanged`; execute it |
+| selected step not completed | `blocked`; execute it |
+| selected step completed | continue |
+
+Every routed `Next` uses the exact Duckbill command.
+
+### 2. Verify prerequisites and preflight
+
+Read project instructions, selected/mapped intent, dependencies, feedback references, and current code. When stored
+prerequisite proof is absent or stale, evaluate and record every ordered `PRE-###`. Stop before `begin` on failed/blocked
+prerequisites.
+
+Use `duckbill-code-refiner` preflight mode with the selected step, specification, feedback/references, current
+implementation, and resolved input. Continue only for a governed code defect. Already-satisfied feedback is unchanged;
+return higher-level work or unresolved ownership to the exact owner without writes.
+
+### 3. Correct and persist
+
+Call state `begin --step <step-id> --mode repair`, then use `duckbill-code-refiner` correction mode for the smallest
+governed repair.
+
+Use its ordered `criteria` as the complete `{id,result,evidence}` set passed to `finish`. If higher-level mismatch
+appears after `begin`, preserve evaluated evidence, mark unevaluated criteria `blocked`, and finish `failed`; otherwise
+finish `completed`, `partial`, or `failed` from evidence.
+
+### 4. Final validation
+
+Re-read state. When all steps are completed, reverify prerequisites and evaluate/record every `VAL-###` against the
+combined implementation without editing it. Classify failures by owner.
+
+### 5. Report
+
+Re-read changed artifacts/state and verify specification/plan intent unchanged. `Next` is the first pending step, exact
+owning refinement command, or `none`.
+
+## Terminal result
+
+Never execute `Next`. On a terminal outcome output exactly:
+
+```text
+Changed: <none or sorted paths changed by this invocation>
+Status: <completed|partial|failed|blocked|unchanged>; <step and overall result>
+Next: <one exact Duckbill command or none>
+```

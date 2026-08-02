@@ -7,36 +7,51 @@ Refine specification `$1` from feedback `${@:2}`.
 
 Example: `/duck-refine-spec specs/user-auth.md#L35 Require one-time recovery links`
 
-This command MAY change only the selected specification. It MUST preserve `plan-file`, linked plan intent,
-`state.json`, and implementation code. Plan staleness is derived later from the specification hash.
+## Permissions
 
-Output MUST be exactly three lines, in order, with nothing else:
+MAY change only the selected specification. MUST preserve its canonical `plan-file` and MUST NOT change plan intent,
+state, implementation, tests, or configuration.
 
-```text
-Changed: <spec-file or none>
-Status: <result and reason>
-Next: <one exact Duckbill command or none>
-```
+## Clarification
 
-## Isolation invariant
-
-This command is the sole orchestrator. Load skills independently and give workers only canonical artifacts and resolved
-user input—the original feedback plus direct user answers—never another worker's report. This command owns routing and
-user interaction.
+If material specification intent is missing, return only focused `[spec]` questions and stop before writes. Resume after
+the answer; omit the terminal result while waiting.
 
 ## Flow
 
-1. Missing reference or feedback: return `blocked; usage: /duck-refine-spec <spec-file> <feedback>` with no changes.
-2. Resolve one repository-relative specification plus optional valid line fragment. A missing file, invalid range, or
-   draft blocks without writes.
-3. Require canonical `plan-file`; when the plan exists, require its reciprocal `spec-file`. Refinement never repairs
-   metadata. Snapshot the linked plan and state bytes only to prove they remain unchanged; do not interpret state.
-4. Load `duckbill-clarifier` independently only for a material specification unknown. Load `duckbill-spec-refiner`
-   independently in preflight using only canonical artifacts and resolved user input. Continue only for a
-   specification-level change. Plan changes, governed code defects, and material unknowns return to their owner without
-   writes.
-5. Authorize refinement of only the specification, then re-read it, run readiness checks, and verify the linked plan,
-   state, and implementation unchanged. A changed specification makes the linked state report `spec-changed` on its
-   next read; do not persist that derived status.
-6. A changed linked specification returns the exact plan-refinement command. Without a plan, route to plan creation.
-   Unchanged intent returns `Next: none`. Never run the recommendation automatically.
+### 1. Resolve and inspect
+
+Require feedback and one ready regular `specs/<name>.md`, optionally followed by valid `#L<line>` or
+`#L<start>-<end>`. Require exact `plan-file: specs/plans/<name>/plan.md` and, when the plan exists, exact reciprocal
+`spec-file: specs/<name>.md`. Invalid input is `blocked`; refinement never repairs metadata.
+
+Snapshot linked plan and state bytes for preservation only; do not interpret state.
+
+### 2. Clarify and preflight
+
+Use `duckbill-clarifier` readiness mode with `specification` scope only for missing intent; after an answer, run
+answer-review before rechecking readiness. Then use `duckbill-spec-refiner` preflight mode with the specification,
+feedback/references, project instructions, verified facts, and resolved input.
+
+Continue only for a specification-level change. Return plan work, governed code defects, and unresolved ownership to
+their exact owning command when known; do not write.
+
+### 3. Refine and verify
+
+Use `duckbill-spec-refiner` refinement mode. Re-run readiness and verify canonical metadata plus unchanged plan, state,
+implementation, tests, and configuration. Do not persist derived state staleness.
+
+### 4. Report
+
+Changed intent routes to plan synchronization when a plan exists, otherwise `/duck-plan <spec-file>`. Already-satisfied
+feedback is `unchanged` with `Next: none`.
+
+## Terminal result
+
+Never execute `Next`. On a terminal outcome output exactly:
+
+```text
+Changed: <none or sorted paths changed by this invocation>
+Status: <completed|failed|blocked|unchanged>; <reason>
+Next: <one exact Duckbill command or none>
+```

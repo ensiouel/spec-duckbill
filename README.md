@@ -54,8 +54,8 @@ Run the command shown on the `Next` line. For example:
 /duck-execute specs/plans/password-authentication/plan.md hash-password
 ```
 
-Each `/duck-execute` invocation completes one plan step. Continue with the suggested `Next` command until validation
-is complete.
+Each `/duck-execute` invocation works on exactly one plan step. Continue with the suggested `Next` command until
+validation is complete.
 
 ## Commands
 
@@ -77,13 +77,19 @@ You can add a line range to a specification or plan path when giving feedback, f
 
 ## Command Results
 
-Every command reports what changed, what happened, and what you can run next:
+When Duckbill needs a material product or planning decision, it asks a focused question batch before changing files.
+Answer the questions to resume the same command.
+
+Every terminal command result is exactly three lines:
 
 ```text
-Changed: <changed files or none>
-Status: <result and reason>
+Changed: <none or sorted repository-relative paths>
+Status: <completed|partial|failed|blocked|unchanged>; <reason>
 Next: <next Duckbill command or none>
 ```
+
+Duckbill never emits this terminal result while waiting for clarification. It never runs the command on `Next`
+automatically.
 
 ## Project Files
 
