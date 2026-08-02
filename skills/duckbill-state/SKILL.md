@@ -24,6 +24,10 @@ node <skill-directory>/scripts/state.mjs <operation> --repo <repository-root> --
 Pass check records only as `{id,result,evidence}` objects. Treat stdout as the JSON summary or write receipt. On a
 nonzero exit, preserve stderr's structured error and stop.
 
+`read` exposes `currentOperation: execute|repair|unknown|null`. `unknown` marks a running legacy state created before
+operation tracking; never infer that it is safe to execute. `begin` persists the requested operation, while `finish`
+and `sync-plan` clear it.
+
 Treat the script as the only source of truth for state shape, enums, transitions, validation, and persistence.
 
 ## Boundaries

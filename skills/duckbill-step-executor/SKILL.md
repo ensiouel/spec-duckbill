@@ -9,7 +9,7 @@ Implement one selected step and stop.
 
 ## Required Reference
 
-Read [references/execution-report.md](references/execution-report.md) before boundary classification or validation.
+Read [references/execution-evidence.md](references/execution-evidence.md) before boundary classification or validation.
 
 ## Modes
 

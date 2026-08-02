@@ -27,19 +27,21 @@ Require canonical `specs/plans/<name>/plan.md`, one existing stable step ID, and
 
 Call state `read --step <step-id>` and take the first matching route:
 
-| State                       | Result/action                           |
-|-----------------------------|-----------------------------------------|
-| missing                     | `blocked`; `/duck-plan <spec-file>`     |
-| invalid                     | `blocked`; `Next: none`                 |
-| plan/spec changed           | `blocked`; plan synchronization command |
-| `complete`                  | `unchanged`; `Next: none`               |
-| `validation`                | final validation                        |
-| different `currentStep`     | `unchanged`; execute it                 |
-| earlier `firstPendingStep`  | `unchanged`; execute it                 |
-| selected `currentStep`      | resume without `begin`                  |
-| selected `firstPendingStep` | continue                                |
+| State | Result/action |
+|---|---|
+| missing | `blocked`; `/duck-plan <spec-file>` |
+| invalid | `blocked`; `Next: none` |
+| plan/spec changed | `blocked`; plan synchronization command |
+| `complete` | `unchanged`; `Next: none` |
+| `validation` | final validation |
+| any `currentStep` with `currentOperation: repair|unknown` | `blocked`; `Next: none` |
+| different `currentStep` with `currentOperation: execute` | `unchanged`; execute it |
+| earlier `firstPendingStep` | `unchanged`; execute it |
+| selected `currentStep` with `currentOperation: execute` | resume without `begin` |
+| selected `firstPendingStep` | continue |
 
-Every routed `Next` uses the exact Duckbill command.
+An interrupted repair must resume through `/duck-refine-code` with explicit feedback; an unknown legacy operation needs
+manual inspection. Every routed `Next` uses the exact Duckbill command.
 
 ### 2. Verify prerequisites and preflight
 

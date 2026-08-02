@@ -1,6 +1,6 @@
 ---
 name: duckbill-code-refiner
-description: Internal Duckbill module; use only when an active Duckbill command selects preflight or correction of a completed step under unchanged specification and plan intent. Never use standalone or to change either artifact's intent.
+description: Internal Duckbill module; use only when an active Duckbill command selects preflight, correction of a completed step, or validation of its selected resumed repair under unchanged specification and plan intent. Never use standalone or to change either artifact's intent.
 ---
 
 # Duckbill Code Refiner
@@ -19,8 +19,9 @@ Read [references/feedback-guide.md](references/feedback-guide.md) before classif
 
 ## Procedure
 
-1. Apply the reference classification. Continue only for a defect in one `completed` step. Classify already-satisfied
-   feedback as unchanged and every other step outcome or intent level without writes.
+1. Apply the reference classification. Continue only for a defect in one `completed` step or validation of its selected
+   resumed repair. Classify already-satisfied feedback as unchanged unless a resumed repair still requires ordered
+   criteria and completion; classify every other step outcome or intent level without writes.
 2. Read governing requirement IDs, step intent, feedback references, and current implementation.
 3. Confirm the expected behavior is already required.
 4. Apply the smallest complete correction. Include related files only when required for

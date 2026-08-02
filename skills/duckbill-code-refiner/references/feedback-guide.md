@@ -15,8 +15,12 @@ behavior is absent from governing intent, classify the level before writes.
 
 MUST STOP without mutations for every non-code class, even when feedback calls `execution-work` a defect.
 
-If current code already satisfies governing intent, classify it as `already-satisfied` and keep it unchanged. Never
-update attempts or workflow state.
+A selected `currentOperation: repair` remains code-refiner work although its open attempt temporarily has no completed
+outcome. Require explicit feedback again and continue only for that same selected step.
+
+If current code already satisfies governing intent, classify it as `already-satisfied` and keep it unchanged. A
+selected resumed repair still evaluates every criterion so the active command can finish its open attempt. Never update
+attempts or workflow state.
 
 Boundary example: “Preserve the original error cause” is code-only when the plan already requires it. “Split hashing
 from registration into a reusable service” changes plan intent and requires later manual execution.

@@ -32,12 +32,17 @@ Call state `read --step <step-id>` and take the first matching route:
 | missing | `blocked`; `/duck-plan <spec-file>` |
 | invalid | `blocked`; `Next: none` |
 | plan/spec changed | `blocked`; plan synchronization command |
-| any `currentStep` | `unchanged`; execute it |
+| `currentStep` with `currentOperation: execute` | `unchanged`; execute it |
+| selected `currentStep` with `currentOperation: repair` | resume correction without `begin` |
+| different `currentStep` with `currentOperation: repair` | `blocked`; `Next: none` |
+| any `currentStep` with `currentOperation: unknown` | `blocked`; `Next: none` |
 | earlier `firstPendingStep` | `unchanged`; execute it |
 | selected step not completed | `blocked`; execute it |
 | selected step completed | continue |
 
-Every routed `Next` uses the exact Duckbill command.
+Resume a selected repair using the feedback supplied to this invocation. A different interrupted repair requires its
+original command and feedback; an unknown legacy operation requires manual inspection. Every routed `Next` uses the
+exact Duckbill command.
 
 ### 2. Verify prerequisites and preflight
 
@@ -46,13 +51,15 @@ prerequisite proof is absent or stale, evaluate and record every ordered `PRE-##
 prerequisites.
 
 Use `duckbill-code-refiner` preflight mode with the selected step, specification, feedback/references, current
-implementation, and resolved input. Continue only for a governed code defect. Already-satisfied feedback is unchanged;
-return higher-level work or unresolved ownership to the exact owner without writes.
+implementation, resolved input, and whether this is a selected resumed repair. Continue only for a governed code
+defect or resumed-repair validation. Already-satisfied feedback is unchanged only when no repair is active; a resumed
+repair still proceeds to ordered criteria and `finish`. Return higher-level work or unresolved ownership to the exact
+owner without writes.
 
 ### 3. Correct and persist
 
-Call state `begin --step <step-id> --mode repair`, then use `duckbill-code-refiner` correction mode for the smallest
-governed repair.
+For a new repair call state `begin --step <step-id> --mode repair`; a selected resumed repair skips it. Then use
+`duckbill-code-refiner` correction mode for the smallest governed repair.
 
 Use its ordered `criteria` as the complete `{id,result,evidence}` set passed to `finish`. If higher-level mismatch
 appears after `begin`, preserve evaluated evidence, mark unevaluated criteria `blocked`, and finish `failed`; otherwise

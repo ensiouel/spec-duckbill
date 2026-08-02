@@ -197,9 +197,10 @@ function plainObject(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function exactFields(value, allowed, path, errors) {
+function exactFields(value, required, path, errors, optional = []) {
+    const allowed = [...required, ...optional];
     for (const key of Object.keys(value)) if (!allowed.includes(key)) errors.push(`${path} has unknown field: ${key}`);
-    for (const key of allowed) if (!(key in value)) errors.push(`${path} is missing field: ${key}`);
+    for (const key of required) if (!(key in value)) errors.push(`${path} is missing field: ${key}`);
 }
 
 function validateCheckMap(value, path, errors) {
@@ -221,12 +222,28 @@ function validateCheckMap(value, path, errors) {
 export function validateState(state) {
     const errors = [];
     if (!plainObject(state)) return ["state must be an object"];
-    exactFields(state, ["schemaVersion", "specHash", "planHash", "currentStep", "prerequisites", "steps", "validation"], "state", errors);
+    exactFields(
+        state,
+        ["schemaVersion", "specHash", "planHash", "currentStep", "prerequisites", "steps", "validation"],
+        "state",
+        errors,
+        ["currentOperation"],
+    );
     if (state.schemaVersion !== SCHEMA_VERSION) errors.push(`unsupported schemaVersion: ${state.schemaVersion}`);
     for (const field of ["specHash", "planHash"]) {
         if (!/^sha256:[0-9a-f]{64}$/u.test(state[field] ?? "")) errors.push(`${field} must be a sha256 hash`);
     }
     if (state.currentStep !== null && typeof state.currentStep !== "string") errors.push("currentStep must be a string or null");
+    const hasCurrentOperation = Object.hasOwn(state, "currentOperation");
+    if (hasCurrentOperation && state.currentOperation !== null && !["execute", "repair"].includes(state.currentOperation)) {
+        errors.push("currentOperation must be execute, repair, or null");
+    }
+    if (hasCurrentOperation && state.currentStep === null && state.currentOperation !== null) {
+        errors.push("currentOperation must be null without currentStep");
+    }
+    if (hasCurrentOperation && typeof state.currentStep === "string" && !["execute", "repair"].includes(state.currentOperation)) {
+        errors.push("currentOperation must identify a running currentStep");
+    }
     validateCheckMap(state.prerequisites, "prerequisites", errors);
     validateCheckMap(state.validation, "validation", errors);
     if (!plainObject(state.steps)) {
@@ -273,6 +290,9 @@ function readState(path, requiredState = true) {
     }
     const errors = validateState(state);
     if (errors.length) throw new StateError("INVALID_STATE", "state validation failed", {errors});
+    if (!Object.hasOwn(state, "currentOperation")) {
+        state.currentOperation = state.currentStep === null ? null : "unknown";
+    }
     return state;
 }
 
@@ -351,6 +371,7 @@ function summary(workflow, selectedId = null) {
         specOutdated,
         planOutdated,
         currentStep: state.currentStep,
+        currentOperation: state.currentOperation,
         firstPendingStep,
         prerequisitesComplete,
         validationComplete,
@@ -374,6 +395,7 @@ function createState(plan, specHash) {
         specHash,
         planHash: plan.hash,
         currentStep: null,
+        currentOperation: null,
         prerequisites: {},
         steps: Object.fromEntries(plan.steps.map((step) => [step.id, {attempt: 0, outcome: null, checks: {}}])),
         validation: {},
@@ -429,16 +451,18 @@ export function run(command, options) {
             if (errors.length) throw new StateError("INVALID_STATE", "state is inconsistent with the current plan", {errors});
             if (workflow.state.currentStep !== null) throw new StateError("INVALID_TRANSITION", "finish the current step before synchronizing an unchanged plan");
             if (affected.length) throw new StateError("INVALID_TRANSITION", "cannot reset affected steps when plan and specification are unchanged");
-            return {ok: true, changed: false, abandonedStepId: null, resetStepIds: []};
+            return {ok: true, changed: false, abandonedStepId: null, abandonedOperation: null, resetStepIds: []};
         }
         const known = new Set([...Object.keys(workflow.state.steps), ...workflow.plan.steps.map((step) => step.id)]);
         for (const id of affected) if (!known.has(id)) throw new StateError("INVALID_ARGUMENT", `unknown affected step: ${id}`);
         const abandonedStepId = workflow.state.currentStep;
+        const abandonedOperation = abandonedStepId ? workflow.state.currentOperation : null;
         const affectedSet = new Set([...affected, ...(abandonedStepId ? [abandonedStepId] : [])]);
         const next = structuredClone(workflow.state);
         next.specHash = workflow.specHash;
         next.planHash = workflow.plan.hash;
         next.currentStep = null;
+        next.currentOperation = null;
         next.prerequisites = Object.fromEntries(Object.entries(next.prerequisites).filter(([id]) => workflow.plan.prerequisites.includes(id)));
         next.validation = {};
         next.steps = Object.fromEntries(workflow.plan.steps.map((step) => {
@@ -456,6 +480,7 @@ export function run(command, options) {
             ok: true,
             changed: true,
             abandonedStepId,
+            abandonedOperation,
             resetStepIds: workflow.plan.steps
                 .filter((step) => affectedSet.has(step.id) || (next.steps[step.id].outcome === null && workflow.state.steps[step.id]?.outcome !== null))
                 .map((step) => step.id),
@@ -497,9 +522,10 @@ export function run(command, options) {
         state.steps[stepId].outcome = null;
         state.steps[stepId].checks = {};
         state.currentStep = stepId;
+        state.currentOperation = mode;
         state.validation = {};
         atomicWrite(workflow.path, state);
-        return {ok: true, changed: true, currentStep: stepId, attempt: state.steps[stepId].attempt};
+        return {ok: true, changed: true, currentStep: stepId, currentOperation: mode, attempt: state.steps[stepId].attempt};
     }
     if (command === "finish") {
         const stepId = required(options, "step");
@@ -514,6 +540,7 @@ export function run(command, options) {
         state.steps[stepId].outcome = outcome;
         state.steps[stepId].checks = checks;
         state.currentStep = null;
+        state.currentOperation = null;
         atomicWrite(workflow.path, state);
         return {ok: true, changed: true, step: stepId, outcome};
     }

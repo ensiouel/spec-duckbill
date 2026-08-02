@@ -28,7 +28,9 @@ stable step ID. Require exact reciprocal `spec-file: specs/<name>.md` and
 Call state `read`:
 
 - Missing state routes to `/duck-plan <spec-file>`; invalid plan/state is `blocked` without repair.
-- A `currentStep` with current hashes routes to its exact `/duck-execute` command.
+- A `currentStep` with current hashes and `currentOperation: execute` routes to its exact `/duck-execute` command.
+- A `currentStep` with current hashes and `currentOperation: repair|unknown` is `blocked` with `Next: none`; repair
+  requires its original `/duck-refine-code` feedback, and an unknown legacy operation requires manual inspection.
 - `plan-changed` or `spec-changed` continues to synchronization preflight.
 
 ### 2. Clarify and preflight

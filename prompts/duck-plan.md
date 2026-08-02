@@ -37,12 +37,14 @@ If the plan exists, require exact `spec-file: specs/<name>.md`.
 | State | Result |
 |---|---|
 | `plan-changed` or `spec-changed` | `blocked`; plan synchronization command |
-| `execute` with `currentStep` | `unchanged`; execute `currentStep` |
+| `execute` with `currentStep` and `currentOperation: execute` | `unchanged`; execute `currentStep` |
+| `execute` with `currentStep` and `currentOperation: repair|unknown` | `blocked`; `Next: none` |
 | `execute` without `currentStep` | `unchanged`; execute `firstPendingStep` |
 | `validation` | `unchanged`; execute the last step |
 | `complete` | `unchanged`; `Next: none` |
 
-Every routed `Next` uses the exact Duckbill command.
+An interrupted repair requires the original `/duck-refine-code` command and feedback; an unknown legacy operation needs
+manual inspection. Neither can be reconstructed here. Every routed `Next` uses the exact Duckbill command.
 
 ### 3. Create new plan
 
