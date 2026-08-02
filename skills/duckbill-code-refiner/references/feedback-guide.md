@@ -38,6 +38,7 @@ or proving a change.
   for every claim; use only its stable `SC-###` ID as identity.
 - Use `completed` only when all criteria pass; `partial` when code changed but proof remains incomplete; `failed` when
   no intended correction was produced.
-- Inspect the code diff; record unavailable checks; confirm specification and plan intent unchanged.
+- Inspect the code diff; represent unavailable required checks as `blocked` criterion evidence; confirm specification
+  and plan intent unchanged.
 
 The active command owns workflow-state persistence, routing, and the terminal result. Never invoke another module.

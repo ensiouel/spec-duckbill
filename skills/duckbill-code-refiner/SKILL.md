@@ -38,17 +38,8 @@ Read [references/feedback-guide.md](references/feedback-guide.md) before classif
 - MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
   command owns those concerns, workflow-state writes, derived coverage, and plan-level validation.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `classification`: `code-defect|already-satisfied|execution-work|plan-level|specification-level|material-unknown`;
-- `outcome`: `completed|partial|failed|unchanged|blocked`;
-- `defect`: governed behavior violated, or `none`;
-- `changedPaths`: sorted repository-relative paths, or `none`;
-- `checksRun`: commands or inspections with result and evidence, or `none`;
-- `criteria`: every selected-step criterion in plan order as `{id,result,evidence}`;
-- `blockers`: conditions that prevented correction or proof, or `none`;
-- `unverifiedItems`: skipped or unavailable checks, or `none`;
-- `materialUnknowns`: unresolved intent/ownership, or `none`;
-- `intentPreserved`: `true|false`.
+- Preflight: `classification` as
+  `code-defect|already-satisfied|execution-work|plan-level|specification-level|material-unknown`.
+- Correction: `criteria`, every selected-step criterion in plan order as `{id,result,evidence}`.

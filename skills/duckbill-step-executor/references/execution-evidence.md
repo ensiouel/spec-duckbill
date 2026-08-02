@@ -35,18 +35,5 @@ reuse prior evidence after related code changes.
 | `partial`   | implementation changed; at least one criterion failed/unproven |
 | `failed`    | no intended implementation outcome was produced                |
 
-## Internal Result
-
-Produce labeled fields, not a standalone Markdown report:
-
-- `classification`: `execution|plan-level|specification-level|material-unknown`;
-- `outcome`: `completed|partial|failed|blocked`;
-- `changedPaths`: sorted repository-relative paths, or `none`;
-- `checksRun`: commands or inspections with result and evidence, or `none`;
-- `criteria`: every selected-step criterion in plan order as `{id,result,evidence}`;
-- `blockers`: conditions that prevented implementation or proof, or `none`;
-- `unverifiedItems`: skipped or unavailable checks, or `none`;
-- `materialUnknowns`: unresolved intent/ownership, or `none`.
-
 Preserve all plan intent and requirement mappings. Include selected-step evidence only; do not derive plan-wide coverage
 or persist workflow state. The active command owns those concerns, routing, and the terminal result.

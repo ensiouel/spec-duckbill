@@ -44,10 +44,9 @@ and unresolved ownership to their exact owning command when known; do not write.
 
 ### 3. Refine, persist, and verify
 
-Use `duckbill-plan-refiner` refinement mode to update only the plan. Validate before supplying only its
-`affectedStepIds` to state `sync-plan --affected <step-ids|none>`; `changedDefinitionIds` are informational. On
-validation/synchronization failure, restore the exact plan preimage. Never hand-edit state; re-read plan and state after
-success.
+Use `duckbill-plan-refiner` refinement mode to update only the plan. Validate before supplying its `affectedStepIds` to
+state `sync-plan --affected <step-ids|none>`. On validation/synchronization failure, restore the exact plan preimage.
+Never hand-edit state; re-read plan and state after success.
 
 ### 4. Report
 

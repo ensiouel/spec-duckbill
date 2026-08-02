@@ -35,15 +35,7 @@ Read [references/refinement-checklist.md](references/refinement-checklist.md) be
 - MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
   command owns those concerns and any later plan synchronization.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `outcome`: `preflight-ready|refined|unchanged|blocked`;
-- `classification`: `specification-level|plan-level|code-defect|material-unknown`;
-- `changedSections`: specification sections changed, or `none`;
-- `changedRequirementIds`: added, changed, or retired `FR|NFR|AC` IDs, or `none`;
-- `scopeChanges`: scope changes, or `none`;
-- `resolvedDecisions`: decisions incorporated into intent, or `none`;
-- `planningNotes`: consequences for later manual plan synchronization, or `none`;
-- `materialUnknowns`: unresolved blockers, or `none`.
+- Preflight: `classification` as `specification-level|plan-level|code-defect|material-unknown`.
+- Refinement: none. The active command verifies and compares the resulting specification directly.

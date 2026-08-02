@@ -42,5 +42,5 @@ A line reference supplies context only. Update every affected section, not only 
 - Feedback is represented as behavior/constraint; all related sections agree.
 - Stable IDs, normative coverage, Technical Design, and resolved decisions remain valid.
 - Conflicts and material unknowns were resolved before saving.
-- Record exact changed requirement IDs and manual plan-synchronization consequences in the internal result.
+- A changed specification requires later manual plan synchronization; do not synchronize it here.
 - Plan intent, workflow state, code, tests, and configuration are unchanged.

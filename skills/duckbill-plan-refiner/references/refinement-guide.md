@@ -32,9 +32,8 @@ Workflow metadata MUST remain canonical. Invalid metadata blocks all writes; ref
 - Prerequisite, criterion, and validation definitions remain ID-prefixed plain bullets.
 - MUST NOT add or edit checkmarks, Execution blocks, attempt data, evidence, or status fields.
 - Preserve a `PRE`, `SC`, or `VAL` ID only while meaning is unchanged. Assign a new ID when meaning changes.
-- Keep changed definition IDs separate from `affectedStepIds`. An affected step is one whose implementation or evidence
-  may be invalid after the change, including a retired step. Only `affectedStepIds` is supplied to state `sync-plan`
-  after plan validation. Never read or write result records.
+- An affected step is one whose implementation or evidence may be invalid after the change, including a retired step.
+  Only `affectedStepIds` is supplied to state `sync-plan` after plan validation. Never read or write result records.
 
 ## Preserve Traceability
 
@@ -48,5 +47,4 @@ Workflow metadata MUST remain canonical. Invalid metadata blocks all writes; ref
 
 Confirm complete specification coverage, unique stable IDs, continuous display step numbering, earlier acyclic
 dependencies, credible paths/commands, coherent boundaries/criteria, and unchanged specification, state, code, tests,
-and configuration. Stable definition IDs MAY contain gaps after retirement. Record affected IDs and classification in
-the internal result.
+and configuration. Stable definition IDs MAY contain gaps after retirement.

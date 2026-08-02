@@ -34,14 +34,11 @@ Read [references/clarification-policy.md](references/clarification-policy.md) be
 
 The active command owns user interaction, artifact writes, routing, workflow state, and the terminal result.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `status`: `questions` or `ready`;
-- `questions`: ordered tagged questions, or `none`;
-- `answerOwnership`: affected `specification|plan` owners, or `none`;
-- `affectedIds`: known requirement, criterion, or step IDs, or `none`.
+- `questions`: ordered tagged questions, or `none`; `none` means the requested scope is materially ready.
+- `answerOwnership`: `specification|plan|both|none`.
+- `affectedIds`: IDs needed to confirm an unexpected conflict, or `none`.
 
 MUST NOT ask the user directly, edit artifacts, read workflow state, invoke another module, or format routing or a
 terminal result.

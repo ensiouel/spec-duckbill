@@ -41,7 +41,7 @@ Pass the full name as one value. Use the returned JSON `path`; MUST NOT derive t
 3. Inspect project files only when architecture, behavior, or conventions affect specification facts.
 4. STOP before the first edit when a material unknown remains; do not ask the user directly.
 5. Write the adaptive structure from the reference. Keep exact technical detail only when it is required specification
-   intent; expose plan-only detail as `planningNotes` instead of saving it in the specification.
+   intent; do not save plan-only detail in the specification.
 6. Preserve user intent and permitted frontmatter. Remove draft guidance and `status`, add canonical future
    `plan-file`, and run the reference Quality Check.
 
@@ -53,15 +53,7 @@ Pass the full name as one value. Use the returned JSON `path`; MUST NOT derive t
 - MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
   command owns those concerns.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `outcome`: `initialized|authored|recovered|blocked`;
-- `path`;
-- `scope`: authored scope, or `none`;
-- `changedRequirementIds`: created or changed `FR|NFR|AC` IDs, or `none`;
-- `resolvedDecisions`: decisions incorporated into intent, or `none`;
-- `planningNotes`: plan-owned details that remain relevant, or `none`;
-- `materialUnknowns`: unresolved blockers, or `none`;
-- `preservationVerified`: `true|false|not-applicable`.
+- Initialization: `path` from the script JSON.
+- Metadata recovery and Authoring: none. The active command verifies the resulting artifact directly.

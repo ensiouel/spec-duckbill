@@ -33,11 +33,14 @@ Read [references/execution-evidence.md](references/execution-evidence.md) before
 - MUST execute exactly one step in order; MUST NOT modify specification intent or plan intent.
 - MUST NOT read or change `state.json` or any workflow state.
 - MUST NOT touch unrelated code, omit a criterion, reuse stale evidence, or claim success without direct proof.
-- MUST record skipped/unavailable checks.
+- MUST mark a criterion `blocked` when its required check is skipped or unavailable and explain why in its evidence.
 - MUST NOT run destructive, production, deployment, or irreversible commands without explicit user authorization.
 - MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
   command owns those concerns, workflow-state persistence, derived coverage, and plan-level validation.
 
-## Result
+## Phase Outputs
 
-Produce the compact internal result defined by the reference. Never produce a standalone Markdown report.
+- Preflight: `classification` as `execution|plan-level|specification-level|material-unknown`.
+- Execution: `criteria`, every selected-step criterion in plan order as `{id,result,evidence}`.
+
+Never produce a standalone Markdown report.

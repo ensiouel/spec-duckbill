@@ -29,7 +29,7 @@ mappings, or ordering.
 3. STOP before saving when a material unknown remains; MUST NOT partially update the plan.
 4. Identify every step ID whose implementation or evidence may become invalid, including IDs that may be retired.
 5. Apply the smallest complete change using the reference identity, traceability, and structure rules.
-6. Separate `affectedStepIds` from changed `PRE|SC|VAL` definition IDs; do not reset evidence or write status.
+6. Finalize `affectedStepIds`; do not reset evidence or write status.
 7. Re-read and run the reference Validation check.
 
 ## Boundaries
@@ -41,15 +41,8 @@ mappings, or ordering.
 - MUST NOT interact with the user, choose routing, or format a terminal result. The active command owns those concerns
   and state reconciliation after plan validation.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `outcome`: `preflight-ready|refined|unchanged|blocked`;
-- `classification`: `plan-level|specification-level|code-defect|material-unknown`;
-- `affectedStepIds`: IDs whose implementation or evidence may be invalid, or `none`; this is the only set supplied to
-  state `sync-plan --affected`;
-- `changedDefinitionIds`: added or retired `PRE|SC|VAL` IDs, or `none`;
-- `changedMappings`: changed `FR|NFR|AC` mappings, or `none`;
-- `structuralChanges`: added, removed, split, merged, or reordered steps, or `none`;
-- `materialUnknowns`: unresolved blockers, or `none`.
+- Preflight: `classification` as `plan-level|specification-level|code-defect|material-unknown`.
+- Refinement: `affectedStepIds`, the IDs whose implementation or evidence may be invalid, or `none`. The active command
+  supplies only this set to state `sync-plan --affected`.

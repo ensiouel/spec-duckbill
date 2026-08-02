@@ -40,16 +40,6 @@ Create a concise executable roadmap from the governing specification.
 - MUST NOT invoke another module, interact with the user, choose routing, or format a terminal result. The active
   command owns those concerns and separate state initialization.
 
-## Result
+## Phase Outputs
 
-Produce a compact internal result with these labels:
-
-- `outcome`: `authored|recovered|blocked`;
-- `planPath`;
-- `scope`: planned scope, or `none`;
-- `coverage`: derived `FR|NFR|AC` coverage, or `none`;
-- `stepCount`;
-- `resolvedDecisions`: decisions incorporated into plan intent, or `none`;
-- `firstStepId`: first executable step, or `none`;
-- `materialUnknowns`: unresolved blockers, or `none`;
-- `preservationVerified`: `true|false|not-applicable`.
+None. The active command verifies the resulting plan directly and owns state initialization and routing.

@@ -81,7 +81,7 @@ Operational Behavior only when relevant. A short “not applicable” is useful 
 - After readiness, remove `status` and add canonical repository-relative
   `plan-file: specs/plans/<name>/plan.md`; the plan need not exist.
 - Refinement MUST preserve `plan-file`. Invalid specification metadata or a mismatched linked plan blocks refinement;
-  record the exact metadata defect in the internal result. Refiners MUST NOT repair links.
+  refiners MUST NOT repair links.
 - MUST NOT duplicate `plan-file` in References.
 
 ## Intent Boundary
@@ -95,8 +95,8 @@ technical detail belongs here only when user intent makes it a required compatib
 or high-level design constraint. Files, symbols, API methods, wrapper layers, algorithms, discretionary libraries, and
 internal code structure are plan intent. Clarify ambiguous ownership before writes.
 
-A specification change MUST NOT edit or synchronize a linked plan; record changed requirement IDs in the internal
-result.
+A specification change MUST NOT edit or synchronize a linked plan. The active command determines later plan
+synchronization from the verified final specification.
 
 ## Stable Normative IDs
 
