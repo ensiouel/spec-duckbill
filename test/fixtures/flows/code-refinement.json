@@ -1,0 +1,5 @@
+{
+  "name": "code-refinement",
+  "steps": ["reject-spec-conflict", "reject-plan-deviation", "repair-governed-code"]
+}
+

@@ -1,82 +1,24 @@
 ---
-description: Execute exactly one plan step without changing specification or plan intent
-argument-hint: "<plan-file> <step-id>"
+description: Execute and validate exactly one current Duckbill task
+argument-hint: "<feature> <task-id>"
 ---
 
-Execute step `$2` from plan `$1`.
+Execute task `$2` for feature `$1`.
 
-Example: `/duck-execute specs/plans/user-auth/plan.md hash-password`
+## Package bootstrap
+
+Before preflight or any write, find the exact `duckbill-artifacts` `<location>` in Pi's `<available_skills>`. Resolve `<package-root>` as `../..` from the directory containing that `SKILL.md`, canonicalize it, and require `<package-root>/package.json` to have `name: "spec-duckbill"`, `pi.prompts: ["./prompts"]`, and `pi.skills: ["./skills"]`. Resolve runtime only from `<package-root>/scripts/`; canonicalize each used file and require it to remain inside that package root. Invoke runtime scripts only through `node <package-root>/scripts/<script>.mjs ...`, never as bare executables. Never fall back to similarly named project files or guessed npm/Git install directories. If bootstrap is missing, ambiguous, or invalid, make no writes and return `blocked` with the bootstrap error.
 
 ## Permissions
 
-MAY change implementation, tests, governed configuration, and plan-local `state.json`. MUST NOT change specification or
-plan intent. Use the `duckbill-state` CLI as the only state interface.
-
-## Clarification
-
-If preflight finds a material specification, plan, or user decision, use `duckbill-clarifier` readiness mode with the
-needed scope and return only focused tagged questions. After an answer, run answer-review before rechecking readiness.
-Stop before `begin` or implementation writes and omit the terminal result while waiting.
+May write task-scoped application code, tests, configuration, and canonical state.json. Constitution, spec.md, plan.md, and tasks.md are read-only.
 
 ## Flow
 
-### 1. Resolve and inspect state
-
-Require canonical `specs/plans/<name>/plan.md`, one existing stable step ID, and exact reciprocal link with
-`specs/<name>.md`. Invalid input is `blocked` with no changes.
-
-Call state `read --step <step-id>` and take the first matching route:
-
-| State | Result/action |
-|---|---|
-| missing | `blocked`; `/duck-plan <spec-file>` |
-| invalid | `blocked`; `Next: none` |
-| plan/spec changed | `blocked`; plan synchronization command |
-| `complete` | `unchanged`; `Next: none` |
-| `validation` | final validation |
-| any `currentStep` with `currentOperation: repair|unknown` | `blocked`; `Next: none` |
-| different `currentStep` with `currentOperation: execute` | `unchanged`; execute it |
-| earlier `firstPendingStep` | `unchanged`; execute it |
-| selected `currentStep` with `currentOperation: execute` | resume without `begin` |
-| selected `firstPendingStep` | continue |
-
-An interrupted repair must resume through `/duck-refine-code` with explicit feedback; an unknown legacy operation needs
-manual inspection. Every routed `Next` uses the exact Duckbill command.
-
-### 2. Verify prerequisites and preflight
-
-Read project instructions, selected/mapped intent, dependencies, and current code. When stored prerequisite proof is
-absent or stale, evaluate and record every ordered `PRE-###`. Stop before `begin` on failed/blocked prerequisites.
-
-Use `duckbill-step-executor` preflight mode with the selected step, governing specification, current implementation, and
-resolved input. Continue only within unchanged specification and plan intent; otherwise route to the exact owner.
-
-### 3. Execute and persist
-
-For a new attempt call state `begin --step <step-id> --mode execute`; a resumed attempt skips it. Use
-`duckbill-step-executor` execution mode for only the selected step.
-
-Use its ordered `criteria` as the complete `{id,result,evidence}` set passed to `finish`. If higher-level
-mismatch appears after `begin`, preserve evaluated evidence, mark unevaluated criteria `blocked`, and finish `failed`;
-otherwise finish `completed`, `partial`, or `failed` from evidence.
-
-### 4. Final validation
-
-Enter from state `validation` or after `finish`, then re-read state. When all steps are completed, reverify
-prerequisites and evaluate/record every `VAL-###` against the combined implementation without editing it. Classify
-failures by owner.
-
-### 5. Report
-
-Re-read changed artifacts/state. `Next` is the first pending step, exact owning refinement/repair command, interrupted
-current step, or `none`.
-
-## Terminal result
-
-Never execute `Next`. On a terminal outcome output exactly:
-
-```text
-Changed: <none or sorted paths changed by this invocation>
-Status: <completed|partial|failed|blocked|unchanged>; <step and overall result>
-Next: <one exact Duckbill command or none>
-```
+1. Resolve canonical paths; run `<package-root>/scripts/check.mjs all`, `<package-root>/scripts/state.mjs status`, `<package-root>/scripts/repository.mjs stale-evidence`, and `duckbill-consistency` mode `analyze-all`. A current execute for this same task resumes its persisted operation without another begin after startedFrom checks; a different current operation routes to its exact stored command. Otherwise require ready/current artifacts, no CRITICAL/HIGH finding, the selected executable status, completed dependencies with current evidence, valid mappings, and no pending clarification/current operation. Evaluate every PRE item when missing/stale and persist the complete current set through `<package-root>/scripts/state.mjs record-prerequisites` before begin; block on any failed or unavailable prerequisite.
+2. Derive and verify an explicit task-scoped implementation/test/config allowlist from the selected task and repository facts. Capture `<package-root>/scripts/repository.mjs snapshot` including pre-existing changes.
+3. Invoke `duckbill-implementation` mode `execute`, phase `preflight`, with an empty write set. Route higher-level conflicts before any transition. Persist a material clarification through `<package-root>/scripts/state.mjs`, show only questions, and resume from state on the next invocation.
+4. After an implementation-owned preflight, run `<package-root>/scripts/state.mjs begin --type execute --task $2 --command duck-execute` with expected revision unless this is the verified same-task resume. Invoke the same skill in phase `apply` for only this task.
+5. Run `<package-root>/scripts/repository.mjs boundary` against the pre-snapshot and task allowlist before success. If unauthorized paths exist, validate available evidence, finish the attempt as blocked, list those paths, and never reset them.
+6. Invoke `duckbill-validation` mode `validate-task`. Enrich every CHK record with current artifact hashes, commit, dirty-tree hash, observed path hashes, command exit code, and output digest. Run `<package-root>/scripts/state.mjs finish` with every CHK exactly once and the resulting outcome.
+7. Re-read state. Next is the exact command for one pending task, `duck-validate $1` when all required tasks are completed, or the explicit owning refinement command on conflict. Render only through `<package-root>/scripts/utils.mjs render` and never execute Next or another task.

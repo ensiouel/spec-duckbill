@@ -1,0 +1,5 @@
+{
+  "name": "spec-refinement",
+  "steps": ["refine-spec", "downstream-stale", "execute-blocked", "sync", "analyze-all", "execute-affected", "validate"]
+}
+

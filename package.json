@@ -1,6 +1,6 @@
 {
   "name": "spec-duckbill",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A compact spec-driven development workflow for Pi",
   "license": "MIT",
   "type": "module",
@@ -14,9 +14,15 @@
   "files": [
     "prompts",
     "skills",
+    "scripts",
+    "templates",
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "test": "node --test",
+    "check": "npm test"
+  },
   "pi": {
     "prompts": [
       "./prompts"
