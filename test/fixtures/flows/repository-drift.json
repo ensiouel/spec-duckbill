@@ -1,5 +1,0 @@
-{
-  "name": "repository-drift",
-  "steps": ["external-change", "status-stale-evidence", "validation-blocked", "explicit-refine"]
-}
-

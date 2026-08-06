@@ -1,0 +1,29 @@
+# Synchronization Preparation
+
+`prepare-sync` compares the current ready specification with existing plan and tasks. It proposes downstream changes and does not write files.
+
+## Required output
+
+```json
+{
+  "status": "completed",
+  "changedRequirementIds": ["FR-002"],
+  "addedRequirementIds": [],
+  "removedRequirementIds": [],
+  "proposedPlanChanges": [],
+  "proposedTaskChanges": [],
+  "suggestedAffectedTaskIds": [],
+  "requiredRemovalOrCorrection": [],
+  "reason": "Downstream changes prepared"
+}
+```
+
+Compare meaning, not only IDs. Treat changed requirements, acceptance criteria, scenarios, relevant plan constraints, actions, checks, mappings, and dependencies as impact sources.
+
+For removed requirements, inspect supplied implementation facts. Do not simply delete a linked task when current code may retain the removed or now-forbidden behavior. Propose a removal task, correction task, and absence-focused validation when needed.
+
+Preserve unaffected architecture, completed tasks, stable IDs, and ordering. Use new IDs only for new meaning. Reset affected tasks and their dependents to `pending`.
+
+Do not derive new product intent from code drift. Drift may reveal a conflict, but only explicit specification refinement can change product intent.
+
+If a material decision cannot be resolved, return 1-5 focused questions in the standard clarification form with owner `specification` or `plan`, stable Q IDs, reason, question, and options. Make no writes and do not ask the user directly.

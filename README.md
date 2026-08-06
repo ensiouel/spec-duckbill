@@ -1,6 +1,6 @@
 # Spec Duckbill
 
-Spec Duckbill is a compact Spec-Driven Development workflow for [Pi](https://github.com/earendil-works/pi).
+Spec Duckbill is a file-first Spec-Driven Development extension for [Pi](https://github.com/earendil-works/pi).
 
 ```text
 constitution
@@ -9,38 +9,72 @@ specification
     ↓
 technical plan
     ↓
-executable tasks
+tasks
     ↓
 implementation
 ```
 
-Each lower level follows the level above it. Code cannot redefine tasks, tasks cannot redefine the plan, and the plan
-cannot redefine the specification.
-
-This version uses a new format that is not compatible with earlier Spec Duckbill versions.
+The extension keeps this flow explicit without implementing its own agent runtime. Pi runs the agent and normal tools.
+Git shows the changes. Duckbill selects the current feature, loads only the relevant guidance, and suggests the next
+action.
 
 ## Installation
 
 Requirements: Pi, Git, and Node.js 20 or newer.
 
-Install globally:
-
 ```bash
 pi install https://github.com/ensiouel/spec-duckbill
 ```
 
-Install for the current project only:
+For the current project only:
 
 ```bash
 pi install -l https://github.com/ensiouel/spec-duckbill
 ```
 
-No files need to be copied or linked manually. Pi loads the commands and skills from the installed package; Duckbill's
-scripts and starting templates are bundled inside the skills that use them.
+## Commands
+
+All actions use one namespace:
+
+| Command                                            | Purpose                                                |
+|----------------------------------------------------|--------------------------------------------------------|
+| `/duck`                                            | Show help                                              |
+| `/duck:init <feature> [description]`               | Create an ordinary feature workspace                   |
+| `/duck:spec <feature> [description]`               | Create or improve the specification                    |
+| `/duck:analyze <feature> <spec\|all>`              | Analyze specification or whole-feature consistency     |
+| `/duck:plan <feature> [description]`               | Create the technical plan and tasks                    |
+| `/duck:sync <feature> [description]`               | Synchronize plan and tasks after specification changes |
+| `/duck:execute <feature> <task-id> [description]`  | Execute one dependency-ready task                      |
+| `/duck:refine <feature> spec <feedback>`           | Refine the specification                               |
+| `/duck:refine <feature> plan <feedback>`           | Refine the plan and tasks                              |
+| `/duck:refine <feature> code <task-id> <feedback>` | Repair one task implementation                         |
+| `/duck:validate <feature> [description]`           | Validate the complete feature without repairing it     |
+| `/duck:status <feature>`                           | Show status inferred from project files                |
+
+The feature is always explicit. Duckbill does not infer it from branches, directories, or previous commands. Commands
+have one positional syntax: no alternative scope flags and no silently ignored arguments.
+
+## Normal flow
+
+```text
+/duck:init password-authentication
+    ↓
+/duck:spec password-authentication
+    ↓
+/duck:analyze password-authentication spec
+    ↓
+/duck:plan password-authentication
+    ↓
+/duck:analyze password-authentication all
+    ↓
+/duck:execute password-authentication verify-password
+    ↓
+/duck:validate password-authentication
+```
+
+`Next` is only a suggestion. Duckbill never starts another action automatically.
 
 ## Project files
-
-Duckbill keeps all of its project files under `.duckbill/`:
 
 ```text
 .duckbill/
@@ -49,164 +83,81 @@ Duckbill keeps all of its project files under `.duckbill/`:
     └── password-authentication/
         ├── spec.md
         ├── plan.md
-        ├── tasks.md
-        └── state.json
+        └── tasks.md
 ```
 
-The files have separate responsibilities:
+There is no `state.json`. Progress is visible in `tasks.md`:
 
-- `constitution.md` contains project-wide rules that every feature must follow.
-- `spec.md` defines WHAT the feature does and WHY it is needed.
-- `plan.md` defines HOW the feature will be implemented.
-- `tasks.md` divides the plan into executable outcomes.
-- `state.json` stores progress, evidence, clarification, and staleness. It is managed by Duckbill and is not a source of
-  product or technical intent.
+```markdown
+### Task 1: Verify password
 
-The source-of-truth order is constitution, specification, plan, tasks, then application code.
+**ID:** verify-password
 
-## Commands
+**Status:** pending
+```
 
-Duckbill provides exactly nine commands:
+Execution changes the selected task to `completed` only after its checks pass.
 
-| Command                                     | Purpose                                                                   |
-|---------------------------------------------|---------------------------------------------------------------------------|
-| `/duck-init <feature> [description]`        | Create the feature, editable draft specification, constitution, and state |
-| `/duck-spec <feature> [description]`        | Develop the draft into a ready specification                              |
-| `/duck-plan <feature>`                      | Create the technical plan and executable tasks                            |
-| `/duck-analyze <feature> --scope spec\|all` | Find gaps and conflicts without changing files                            |
-| `/duck-sync <feature>`                      | Update plan and tasks after the specification changes                     |
-| `/duck-execute <feature> <task-id>`         | Implement and check exactly one task                                      |
-| `/duck-refine <feature> --scope ...`        | Refine specification, plan/task design, or code                           |
-| `/duck-validate <feature>`                  | Validate the complete feature against current evidence                    |
-| `/duck-status <feature>`                    | Show progress, staleness, drift, and the next suggested command           |
-
-`Next` is always a suggestion. Duckbill never runs the next command or task automatically.
-
-## Normal workflow
-
-Start a feature without writing a long description in the command:
+Status is inferred from existing files:
 
 ```text
-/duck-init password-authentication
-    ↓
-edit .duckbill/specs/password-authentication/spec.md
-    ↓
-/duck-spec password-authentication
-    ↓
-/duck-analyze password-authentication --scope spec
-    ↓
-/duck-plan password-authentication
-    ↓
-/duck-analyze password-authentication --scope all
-    ↓
-/duck-execute password-authentication <task-id>
-    ↓
-/duck-validate password-authentication
+draft specification       -> /duck:spec
+ready spec without plan   -> /duck:plan
+spec newer than plan      -> /duck:sync
+pending task              -> /duck:execute
+all tasks completed       -> /duck:validate
 ```
 
-`/duck-init` creates a minimal `spec.md` with `status: draft` and one `## Feature Brief` field. Describe the feature
-there in ordinary language. The optional description argument only pre-fills that field.
-
-`/duck-spec` uses that brief as its main input and builds the complete specification with actors, scenarios,
-requirements, acceptance criteria, and stable IDs. It asks for material product decisions when needed and marks the
-specification ready only after its checks pass.
-
-Run `/duck-execute` separately for each task. One invocation performs one task and never starts another.
-
-## Analyze, validate, and status
-
-These commands answer different questions:
-
-- `/duck-analyze --scope spec`: is the specification clear and complete enough to plan?
-- `/duck-analyze --scope all`: do constitution, specification, plan, tasks, and state agree?
-- `/duck-validate`: does current evidence prove that the implementation satisfies the approved requirements?
-- `/duck-status`: what is current, stale, blocked, or interrupted, and what command should be considered next?
-
-Analysis and status are read-only. Validation may update validation evidence in `state.json`, but it never fixes code or
-changes intent.
-
-## Changing the specification
-
-After a specification is ready, change it through explicit refinement:
+Duckbill does not select a task. Status lists all dependency-ready task IDs and prints the explicit placeholder:
 
 ```text
-/duck-refine password-authentication --scope spec "Require locked accounts to be denied"
-    ↓
-/duck-sync password-authentication
-    ↓
-/duck-analyze password-authentication --scope all
-    ↓
-/duck-execute password-authentication <affected-task-id>
-    ↓
-/duck-validate password-authentication
+Ready tasks: verify-password, create-session
+Next: /duck:execute password-authentication <task-id>
 ```
 
-A specification change makes the existing plan, tasks, and related evidence stale. `/duck-sync` updates the downstream
-artifacts, adds correction or removal work when necessary, and preserves unaffected task evidence. It does not execute
-any task.
-
-## Changing the plan or task design
+Artifact metadata is required. Missing or unknown specification, plan, task status, task ID, or dependencies are
+reported as issues rather than guessed. When a plan is stale, status shows the exact timestamp rule:
 
 ```text
-/duck-refine password-authentication --scope plan "Split credential lookup from verification"
-    ↓
-/duck-analyze password-authentication --scope all
+Plan: stale
+Plan reason: spec.md was modified after plan.md
 ```
 
-Plan scope covers both the technical approach and task decomposition. A proposed plan or task change is rejected if it
-contradicts the specification.
+## Prompts and skills
 
-## Repairing implementation
+The package keeps semantic materials private instead of registering them globally in Pi:
 
 ```text
-/duck-refine password-authentication --scope code \
-  --task verify-password \
-  "Preserve the generic denial result"
-    ↓
-/duck-validate password-authentication
+assets/
+├── prompts/
+├── skills/
+└── templates/
 ```
 
-Code refinement repairs one task without changing specification or plan. If feedback actually changes product intent,
-use specification refinement. If it changes the technical approach, use plan refinement.
+Each action loads only its own prompt, relevant skill references, and required templates. For example, specification
+work does not load execution guidance.
 
-## Clarification and interruption
+These files explain the work. They do not contain scripts, permissions, state transitions, or hidden workflow logic.
 
-When a material decision is missing, Duckbill asks focused `Q-###` questions. Reply normally, for example
-`Q-001: Use the existing authentication boundary`. No command flag or JSON input is required. Duckbill keeps the
-command, answers, and source artifact hashes in state until the operation completes.
-
-If the specification, plan, or tasks change before the operation continues, the saved questions are discarded as stale
-and evaluated again. After a lost conversation, run the original command again to show the still-current unanswered
-questions.
-
-Original repair feedback is also stored, so an interrupted code repair can resume without reconstructing the request
-from memory.
-
-## Evidence, staleness, and drift
-
-Completed work is accepted only when its evidence still matches the current requirements, plan, task definition, and
-observed code. Relevant changes make that evidence stale. Unrelated task evidence is preserved.
-
-If code changes outside Duckbill, the workflow does not guess new intent from the code. Inspect the situation first:
+## Source structure
 
 ```text
-/duck-status password-authentication
-    ↓
-/duck-analyze password-authentication --scope all
-    ↓
-/duck-validate password-authentication
-    ↓
-explicit /duck-refine with scope spec, plan, or code
+src/
+├── index.mjs
+├── workspace.mjs
+├── prompts.mjs
+├── status.mjs
+└── git.mjs
 ```
 
-Use the scope that owns the intended change:
+- `index.mjs` registers `/duck:*` and starts normal Pi turns.
+- `workspace.mjs` manages feature paths, selection, and initialization.
+- `prompts.mjs` selects and loads private semantic materials.
+- `status.mjs` derives progress from ordinary files.
+- `git.mjs` reads the repository root and worktree status.
 
-- wrong implementation: `--scope code --task <task-id>`;
-- changed technical approach or missing correction task: `--scope plan`;
-- changed product behavior: `--scope spec`, followed by `/duck-sync`.
-
-Duckbill limits every changing command to its allowed files. Unexpected writes block success, and pre-existing user
-changes are never automatically reset or cleaned.
+Duckbill does not register custom tools, replace Pi sessions, maintain an evidence ledger, lock write paths, or
+implement its own state machine. Preserve unrelated changes and review the resulting Git diff as with normal agent work.
 
 ## License
 

@@ -1,5 +1,0 @@
-{
-  "name": "plan-refinement",
-  "steps": ["reject-spec-conflict", "refine-plan", "reconcile", "preserve-unaffected-evidence"]
-}
-
