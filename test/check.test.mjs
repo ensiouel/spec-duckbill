@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {join} from "node:path";
 import test from "node:test";
-import {checkArtifacts, parsePlan, parseSpec, parseTasks} from "../scripts/check.mjs";
+import {checkArtifacts, parsePlan, parseSpec, parseTasks} from "../skills/duckbill-runtime/scripts/check.mjs";
 
 const fixtureRoot = join(import.meta.dirname, "fixtures", "valid", ".duckbill", "specs", "password-authentication");
 const specPath = ".duckbill/specs/password-authentication/spec.md";
@@ -11,6 +11,19 @@ const tasksPath = ".duckbill/specs/password-authentication/tasks.md";
 const spec = readFileSync(join(fixtureRoot, "spec.md"), "utf8");
 const plan = readFileSync(join(fixtureRoot, "plan.md"), "utf8");
 const tasks = readFileSync(join(fixtureRoot, "tasks.md"), "utf8");
+const minimalDraft = `---
+schema: duckbill/spec@1
+feature-id: password-authentication
+status: draft
+plan-file: .duckbill/specs/password-authentication/plan.md
+---
+
+# Password Authentication
+
+## Feature Brief
+
+Allow registered people to sign in with a password while keeping denial responses generic.
+`;
 
 function check(overrides = {}) {
   return checkArtifacts({specSource: spec, planSource: plan, tasksSource: tasks, specPath, planPath, tasksPath, ...overrides});
@@ -50,6 +63,13 @@ function twoTaskSource(firstDependency = "none", secondDependency = "implement-p
 }
 
 test("valid spec", () => assert.deepEqual(parseSpec(spec).errors, []));
+test("minimal draft is canonical input but not a ready specification", () => {
+  const result = check({specSource: minimalDraft, planSource: undefined, tasksSource: undefined});
+  assert.equal(result.artifacts.spec.status, "draft");
+  assert.match(result.artifacts.spec.draftDescription, /registered people/u);
+  assert.ok(!codes(result).includes("UNRESOLVED_PLACEHOLDER"));
+  assert.ok(!codes(result).includes("MISSING_SECTION"));
+});
 test("valid plan", () => assert.deepEqual(parsePlan(plan).errors, []));
 test("valid tasks", () => assert.deepEqual(parseTasks(tasks).errors, []));
 test("valid complete artifact set", () => assert.equal(check().ok, true));

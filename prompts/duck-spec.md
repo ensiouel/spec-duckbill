@@ -1,13 +1,13 @@
 ---
-description: Create a ready WHAT-and-WHY specification for one initialized feature
+description: Develop an editable draft into a ready WHAT-and-WHY specification
 argument-hint: "<feature> [description]"
 ---
 
-Create specification for `$1` from optional description `${@:2}` and any persisted clarification answers.
+Develop the existing draft specification for `$1`. Treat `${@:2}` only as optional extra context.
 
-## Package bootstrap
+## Skills
 
-Before preflight or any write, find the exact `duckbill-artifacts` `<location>` in Pi's `<available_skills>`. Resolve `<package-root>` as `../..` from the directory containing that `SKILL.md`, canonicalize it, and require `<package-root>/package.json` to have `name: "spec-duckbill"`, `pi.prompts: ["./prompts"]`, and `pi.skills: ["./skills"]`. Resolve runtime only from `<package-root>/scripts/` and templates only from `<package-root>/templates/`; canonicalize each used file and require it to remain inside that package root. Invoke runtime scripts only through `node <package-root>/scripts/<script>.mjs ...`, never as bare executables. Never fall back to similarly named project files or guessed npm/Git install directories. If bootstrap is missing, ambiguous, or invalid, make no writes and return `blocked` with the bootstrap error.
+Load `duckbill-runtime` and `duckbill-specification`. Use mode `create-spec`. If either is unavailable, make no writes and return `blocked`.
 
 ## Permissions
 
@@ -15,10 +15,10 @@ May write only canonical spec.md and state.json. Constitution, plan, tasks, appl
 
 ## Flow
 
-1. Resolve canonical paths with `<package-root>/scripts/repository.mjs feature-paths`; load state, constitution, `<package-root>/templates/specification.md`, project instructions, description, and relevant observable project facts. If the same command has pending clarification, resume it through `<package-root>/scripts/state.mjs resume` using the stored command/mode/arguments.
-2. Capture the repository snapshot and pre-existing changed paths through `<package-root>/scripts/repository.mjs snapshot`. Allow only spec.md and state.json.
-3. Invoke `duckbill-artifacts` with mode `create-spec`, the specification template as starting structure, explicit inputs, and those permissions. Normative format rules still come from the skill references, not the template.
-4. On `needs_clarification`, save the complete context through `<package-root>/scripts/state.mjs clarify`, show only the returned questions, and stop without a terminal result.
-5. Run `<package-root>/scripts/check.mjs spec` and require `status: ready`. Enforce a spec.md-only `<package-root>/scripts/repository.mjs boundary` against the pre-snapshot before any state success write. Unauthorized writes block success and are not reset.
-6. After the boundary passes, run `<package-root>/scripts/state.mjs record-spec` with the expected revision. Run a final `<package-root>/scripts/repository.mjs boundary` against the original snapshot and the full spec.md/state.json allowlist.
-7. Build a structured result with Next `duck-analyze $1 --scope spec`, then render only through `<package-root>/scripts/utils.mjs render`. Never execute Next.
+1. Parse feature and optional description.
+2. Invoke `duckbill-runtime` with operation `prepare` for `duck-spec`. Build the semantic input from the user's Feature Brief, constitution, optional description, project instructions, verified observable facts, and runtime findings.
+3. If runtime reports a matching pending clarification, collect the user's ordinary reply and invoke `duckbill-runtime` with operation `resume` before calling the semantic skill.
+4. Invoke `duckbill-specification` in mode `create-spec` with the prepared input and declared permissions.
+5. On a typed clarification result, invoke `duckbill-runtime` with operation `clarify`, show the returned questions, and wait for the reply.
+6. On an artifact result, invoke `duckbill-runtime` with operation `finalize` for `duck-spec` and pass that result.
+7. Invoke `duckbill-runtime` with operation `render` for the structured command result. Never execute Next.

@@ -26,3 +26,4 @@ Preserve unaffected architecture, tasks, IDs, evidence eligibility, and ordering
 
 Do not derive new product intent from code drift. Drift may reveal a conflict, but only explicit specification refinement can change product intent.
 
+If a material decision cannot be resolved, return 1-5 focused questions in the standard clarification form with owner `specification` or `plan`, stable Q IDs, reason, question, and options. Make no writes and do not ask the user directly.

@@ -61,13 +61,38 @@ export function validateFeaturePaths(root, featureId, options = {}) {
   return paths;
 }
 
-export function initializeFeature(root, featureId, constitutionTemplate) {
+function readSafeTemplate(templatePath, label) {
+  if (typeof templatePath !== "string" || !templatePath) {
+    throw new DuckbillError("TEMPLATE_NOT_FOUND", `${label} template path is required`);
+  }
+  const absolute = resolve(templatePath);
+  if (!existsSync(absolute) || !lstatSync(absolute).isFile() || lstatSync(absolute).isSymbolicLink()) {
+    throw new DuckbillError("TEMPLATE_NOT_FOUND", `${label} template is missing or unsafe: ${templatePath}`);
+  }
+  return readFileSync(absolute, "utf8");
+}
+
+export function renderSpecificationDraft(template, featureId, description = null) {
+  validateFeatureSlug(featureId);
+  const descriptionMarker = "<Describe what should be built, who needs it, why it is needed, expected behavior, and important boundaries.>";
+  if (!template.includes("schema: duckbill/spec@1") || !template.includes("status: draft") || !template.includes("<feature-id>") || !template.includes("# <Feature name>") || !template.includes("## Feature Brief") || !template.includes(descriptionMarker)) {
+    throw new DuckbillError("INVALID_TEMPLATE", "specification template lacks required draft markers");
+  }
+  const featureName = featureId.split("-").map((part) => `${part[0].toUpperCase()}${part.slice(1)}`).join(" ");
+  let draft = template.replaceAll("<feature-id>", featureId).replace("# <Feature name>", `# ${featureName}`);
+  if (typeof description === "string" && description.trim()) {
+    draft = draft.replace(descriptionMarker, description.trim());
+  }
+  return draft;
+}
+
+export function initializeFeature(root, featureId, options) {
   const repositoryRoot = findRepositoryRoot(root);
   const paths = validateFeaturePaths(repositoryRoot, featureId, {requireAbsent: true});
-  const templatePath = resolve(constitutionTemplate);
-  if (!existsSync(templatePath) || !lstatSync(templatePath).isFile() || lstatSync(templatePath).isSymbolicLink()) {
-    throw new DuckbillError("TEMPLATE_NOT_FOUND", `constitution template is missing or unsafe: ${constitutionTemplate}`);
-  }
+  if (!options || typeof options !== "object") throw new DuckbillError("INVALID_ARGUMENT", "initialization templates are required");
+  const constitutionSource = readSafeTemplate(options.constitutionTemplate, "constitution");
+  const specificationTemplate = readSafeTemplate(options.specificationTemplate, "specification");
+  const specificationDraft = renderSpecificationDraft(specificationTemplate, featureId, options.description);
   const changed = [];
   const duckbillDirectory = validateRepositoryPath(repositoryRoot, ".duckbill");
   const specsDirectory = validateRepositoryPath(repositoryRoot, ".duckbill/specs");
@@ -77,12 +102,15 @@ export function initializeFeature(root, featureId, constitutionTemplate) {
   validateRepositoryPath(repositoryRoot, ".duckbill/specs", {type: "directory"});
   const constitution = validateRepositoryPath(repositoryRoot, paths.constitution);
   if (!existsSync(constitution)) {
-    atomicCreate(constitution, readFileSync(templatePath));
+    atomicCreate(constitution, constitutionSource);
     changed.push(paths.constitution);
   }
   const featureDirectory = validateRepositoryPath(repositoryRoot, paths.directory);
   try { mkdirSync(featureDirectory); }
   catch (error) { if (error?.code === "EEXIST") throw new DuckbillError("FEATURE_EXISTS", `feature directory already exists: ${paths.directory}`); throw error; }
+  const specification = validateRepositoryPath(repositoryRoot, paths.spec);
+  atomicCreate(specification, specificationDraft);
+  changed.push(paths.spec);
   return {paths, changed};
 }
 
@@ -142,7 +170,7 @@ export function captureRepositorySnapshot(root, options = {}) {
   const statuses = parseStatus(repositoryRoot);
   const changedPaths = uniqueSorted([...statuses.keys()]);
   const changedPathHashes = Object.fromEntries(changedPaths.map((path) => [path, hashRepositoryPath(repositoryRoot, path)]));
-  const excluded = new Set(options.excludePaths ?? []);
+  const excluded = new Set((options.excludePaths ?? []).map(normalizeRepositoryPath));
   const dirtyEntries = changedPaths
     .filter((path) => !excluded.has(path) && !/^\.duckbill\/specs\/[^/]+\/state\.json(?:\.lock)?$/u.test(path))
     .map((path) => [path, statuses.get(path), changedPathHashes[path]]);
@@ -166,17 +194,21 @@ export function commandCreatedPaths(before, after) {
   });
 }
 
-export function validateWriteBoundary(before, after, allowlist) {
+export function validateWriteBoundary(before, after, allowlist, options = {}) {
   const allowed = new Set(allowlist.map(normalizeRepositoryPath));
+  const allowedPreExisting = new Set((options.allowedPreExistingPaths ?? []).map(normalizeRepositoryPath));
   const created = commandCreatedPaths(before, after);
   const unauthorizedPaths = created.filter((path) => !allowed.has(path));
   const preExisting = new Set(before.changedPaths);
+  const touchedPreExistingPaths = created.filter((path) => preExisting.has(path));
+  const protectedPreExistingPaths = touchedPreExistingPaths.filter((path) => !allowedPreExisting.has(path));
   return {
-    ok: unauthorizedPaths.length === 0,
+    ok: unauthorizedPaths.length === 0 && protectedPreExistingPaths.length === 0,
     commandCreatedPaths: created,
     unauthorizedPaths,
     preExistingChangedPaths: [...preExisting].sort(),
-    touchedPreExistingPaths: created.filter((path) => preExisting.has(path)),
+    touchedPreExistingPaths,
+    protectedPreExistingPaths,
     preservedPreExistingPaths: [...preExisting].filter((path) => !created.includes(path)).sort(),
   };
 }
@@ -232,13 +264,13 @@ function main(argv) {
     process.stdout.write(`${JSON.stringify(validateFeaturePaths(root, options.feature, {requireAbsent: options.absent === "true"}))}\n`);
     return;
   }
-  if (command === "init-feature") {
-    const result = initializeFeature(root, options.feature, options.template);
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
   if (command === "boundary") {
-    const result = validateWriteBoundary(JSON.parse(options.before), captureRepositorySnapshot(root), JSON.parse(options.allowlist));
+    const result = validateWriteBoundary(
+      JSON.parse(options.before),
+      captureRepositorySnapshot(root),
+      JSON.parse(options.allowlist),
+      {allowedPreExistingPaths: options["allow-pre-existing"] ? JSON.parse(options["allow-pre-existing"]) : []},
+    );
     process.stdout.write(`${JSON.stringify(result)}\n`);
     if (!result.ok) process.exitCode = 1;
     return;
@@ -251,7 +283,7 @@ function main(argv) {
     if (result.stale) process.exitCode = 1;
     return;
   }
-  throw new DuckbillError("INVALID_ARGUMENT", "usage: repository.mjs snapshot|feature-paths|init-feature|boundary|stale-evidence [options]");
+  throw new DuckbillError("INVALID_ARGUMENT", "usage: repository.mjs snapshot|feature-paths|boundary|stale-evidence [options]");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

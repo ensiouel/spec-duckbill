@@ -49,7 +49,7 @@ const TASK_SECTIONS = ["Prerequisites", "Tasks", "Feature Validation"];
 const PLACEHOLDER_PATTERNS = [
   {pattern: /\[WRITE HERE\]/iu, label: "[WRITE HERE]"},
   {pattern: /\b(?:TODO|TBD|TK)\b/iu, label: "TODO/TBD/TK"},
-  {pattern: /<(?:feature|condition|observable|verified|concrete|coherent|stable|user|business|cross-task|measurable|non-negotiable)[^>]*>/iu, label: "template value"},
+  {pattern: /<(?:describe|feature|condition|observable|verified|concrete|coherent|stable|user|business|cross-task|measurable|non-negotiable)[^>]*>/iu, label: "template value"},
 ];
 
 function finding(code, message, path = null, details = undefined) {
@@ -154,6 +154,36 @@ export function parseSpec(source, options = {}) {
   if (!["draft", "ready"].includes(attributes.status)) errors.push(finding("INVALID_SPEC_STATUS", "spec status must be draft or ready", path));
   if (featureId && attributes["plan-file"] !== `.duckbill/specs/${featureId}/plan.md`) {
     errors.push(finding("INVALID_CANONICAL_PATH", "plan-file is not canonical for feature-id", path));
+  }
+  if (attributes.status === "draft") {
+    const sections = headingSections(body).entries;
+    const briefSections = sections.filter((entry) => entry.name === "Feature Brief");
+    if (briefSections.length !== 1 || sections.length !== 1) {
+      errors.push(finding("INVALID_DRAFT_STRUCTURE", "draft specification must contain exactly one Feature Brief section", path));
+    }
+    const brief = sectionBlock(body, "Feature Brief");
+    if (!brief?.text.trim()) errors.push(finding("EMPTY_DRAFT_DESCRIPTION", "draft Feature Brief must not be empty", path));
+    unresolvedPlaceholders(source, path, errors);
+    return {
+      kind: "spec",
+      path,
+      errors,
+      warnings: [],
+      model: {
+        featureId,
+        status: "draft",
+        planFile: attributes["plan-file"],
+        draftDescription: brief?.text.trim() ?? "",
+        scenarios: [],
+        functionalRequirements: [],
+        nonFunctionalRequirements: [],
+        acceptanceCriteria: [],
+        outcomes: [],
+        idHashes: {},
+        allCoverageIds: [],
+      },
+      hash: hashText(source),
+    };
   }
   validateSections(body, SPEC_SECTIONS, path, errors);
   const requirements = sectionBlock(body, "Requirements");

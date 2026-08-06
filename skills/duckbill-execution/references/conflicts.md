@@ -28,4 +28,3 @@ material-unknown
 ```
 
 Include related IDs, the current requirement/constraint, the conflicting proposal or code behavior, and why the difference is material. Never choose the user's intent from the current implementation.
-

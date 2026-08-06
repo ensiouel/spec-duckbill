@@ -1,4 +1,4 @@
-# Implementation Boundaries
+# Execution Boundaries
 
 The command runtime captures a repository snapshot and supplies an explicit allowlist before implementation. Treat referenced files as context, not permission.
 
@@ -22,4 +22,3 @@ After work:
 An unauthorized write is reported and left for user inspection. State must not record the task as completed.
 
 Do not run destructive, deployment, production, or irreversible commands without explicit user authorization.
-

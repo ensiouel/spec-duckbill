@@ -1,5 +1,4 @@
 {
   "name": "main",
-  "steps": ["init", "spec", "analyze-spec", "plan", "analyze-all", "execute-one-by-one", "validate"]
+  "steps": ["init", "edit-draft", "spec", "analyze-spec", "plan", "analyze-all", "execute-one-by-one", "validate"]
 }
-

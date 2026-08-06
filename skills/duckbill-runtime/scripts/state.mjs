@@ -4,7 +4,7 @@ import {closeSync, existsSync, lstatSync, openSync, readFileSync, rmSync} from "
 import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {canonicalFeaturePaths, checkArtifacts, checkFeature, parsePlan, parseSpec, parseTasks} from "./check.mjs";
-import {captureRepositorySnapshot, detectEvidenceStaleness, detectRepositoryDrift, validateFeatureSlug} from "./repository.mjs";
+import {captureRepositorySnapshot, detectEvidenceStaleness, detectRepositoryDrift, validateFeatureSlug, validateRepositoryPath} from "./repository.mjs";
 import {
   atomicWrite,
   DuckbillError,
@@ -12,6 +12,7 @@ import {
   readJsonFile,
   safeJoin,
   SHA256_PATTERN,
+  normalizeRepositoryPath,
 } from "./utils.mjs";
 
 export const STATE_SCHEMA = "duckbill/state@1";
@@ -51,6 +52,14 @@ function validateStartedFrom(value, path, errors) {
   for (const name of ["specHash", "planHash", "tasksHash"]) if (!validHash(value[name])) errors.push(`${path}.${name} must be a sha256 hash`);
   if (value.commit !== null && typeof value.commit !== "string") errors.push(`${path}.commit must be a string or null`);
   if (!validHash(value.dirtyTreeHash)) errors.push(`${path}.dirtyTreeHash must be a sha256 hash`);
+}
+
+function validateArtifactHashes(value, path, errors) {
+  exactFields(value, ["specHash", "planHash", "tasksHash"], [], path, errors);
+  if (!plainObject(value)) return;
+  for (const name of ["specHash", "planHash", "tasksHash"]) {
+    if (!validHash(value[name], true)) errors.push(`${path}.${name} must be a sha256 hash or null`);
+  }
 }
 
 export function validateEvidenceRecord(value, path = "evidence") {
@@ -109,13 +118,14 @@ function validateTaskRecord(value, id, errors) {
   if (!Array.isArray(value.attempts)) errors.push(`${path}.attempts must be an array`);
   else value.attempts.forEach((attempt, index) => {
     const attemptPath = `${path}.attempts[${index}]`;
-    exactFields(attempt, ["number", "type", "command", "feedback", "feedbackReferences", "startedFrom", "outcome", "evidence"], [], attemptPath, errors);
+    exactFields(attempt, ["number", "type", "command", "feedback", "feedbackReferences", "writePaths", "startedFrom", "outcome", "evidence"], [], attemptPath, errors);
     if (!plainObject(attempt)) return;
     if (attempt.number !== index + 1) errors.push(`${attemptPath}.number must be continuous`);
     if (!["execute", "repair"].includes(attempt.type)) errors.push(`${attemptPath}.type is invalid`);
     if (typeof attempt.command !== "string" || !attempt.command) errors.push(`${attemptPath}.command is required`);
     if (attempt.feedback !== null && typeof attempt.feedback !== "string") errors.push(`${attemptPath}.feedback must be a string or null`);
     if (!Array.isArray(attempt.feedbackReferences) || attempt.feedbackReferences.some((item) => typeof item !== "string")) errors.push(`${attemptPath}.feedbackReferences must be a string array`);
+    if (!Array.isArray(attempt.writePaths) || attempt.writePaths.some((item) => typeof item !== "string")) errors.push(`${attemptPath}.writePaths must be a string array`);
     validateStartedFrom(attempt.startedFrom, `${attemptPath}.startedFrom`, errors);
     if (attempt.outcome !== null && !["completed", "partial", "failed", "blocked", "stale"].includes(attempt.outcome)) errors.push(`${attemptPath}.outcome is invalid`);
     validateEvidenceMap(attempt.evidence, `${attemptPath}.evidence`, errors, /^CHK-\d{3}$/u);
@@ -142,7 +152,7 @@ export function validateState(state) {
   }
   validateSnapshot(state.repository, "state.repository", errors);
   if (state.currentOperation !== null) {
-    exactFields(state.currentOperation, ["type", "taskId", "command", "feedback", "feedbackReferences", "startedFrom"], [], "state.currentOperation", errors);
+    exactFields(state.currentOperation, ["type", "taskId", "command", "feedback", "feedbackReferences", "writePaths", "startedFrom"], [], "state.currentOperation", errors);
     if (plainObject(state.currentOperation)) {
       if (!["execute", "repair"].includes(state.currentOperation.type)) errors.push("state.currentOperation.type is invalid");
       if (typeof state.currentOperation.taskId !== "string") errors.push("state.currentOperation.taskId is required");
@@ -150,11 +160,12 @@ export function validateState(state) {
       if (state.currentOperation.feedback !== null && typeof state.currentOperation.feedback !== "string") errors.push("state.currentOperation.feedback must be string or null");
       if (state.currentOperation.type === "repair" && (typeof state.currentOperation.feedback !== "string" || !state.currentOperation.feedback.trim())) errors.push("repair currentOperation requires feedback");
       if (!Array.isArray(state.currentOperation.feedbackReferences)) errors.push("state.currentOperation.feedbackReferences must be an array");
+      if (!Array.isArray(state.currentOperation.writePaths) || state.currentOperation.writePaths.some((item) => typeof item !== "string")) errors.push("state.currentOperation.writePaths must be a string array");
       validateStartedFrom(state.currentOperation.startedFrom, "state.currentOperation.startedFrom", errors);
     }
   }
   if (state.pendingClarification !== null) {
-    exactFields(state.pendingClarification, ["owner", "questions", "command", "skillMode", "arguments", "answers"], [], "state.pendingClarification", errors);
+    exactFields(state.pendingClarification, ["owner", "questions", "command", "skillMode", "arguments", "answers", "startedFrom"], [], "state.pendingClarification", errors);
     if (plainObject(state.pendingClarification)) {
       if (!["specification", "plan"].includes(state.pendingClarification.owner)) errors.push("state.pendingClarification.owner is invalid");
       if (!Array.isArray(state.pendingClarification.questions) || state.pendingClarification.questions.length === 0) errors.push("state.pendingClarification.questions is required");
@@ -167,6 +178,13 @@ export function validateState(state) {
       });
       if (typeof state.pendingClarification.command !== "string" || typeof state.pendingClarification.skillMode !== "string") errors.push("state.pendingClarification source is invalid");
       if (!plainObject(state.pendingClarification.arguments) || !plainObject(state.pendingClarification.answers)) errors.push("state.pendingClarification context is invalid");
+      else {
+        const questionIds = new Set((state.pendingClarification.questions ?? []).map((question) => question.id));
+        for (const [id, answer] of Object.entries(state.pendingClarification.answers)) {
+          if (!questionIds.has(id) || typeof answer !== "string" || !answer.trim()) errors.push(`state.pendingClarification.answers.${id} is invalid`);
+        }
+      }
+      validateArtifactHashes(state.pendingClarification.startedFrom, "state.pendingClarification.startedFrom", errors);
     }
   }
   validateEvidenceMap(state.prerequisites, "state.prerequisites", errors, /^PRE-\d{3}$/u);
@@ -283,7 +301,7 @@ export function initializeStateFile(path, state) {
   }
 }
 
-function startedFrom(state) {
+function startedFrom(state, repositorySnapshot = state.repository) {
   for (const name of ["specHash", "planHash", "tasksHash"]) {
     if (!state.artifacts[name]) throw new DuckbillError("ARTIFACT_NOT_READY", `${name} is missing`);
   }
@@ -291,20 +309,25 @@ function startedFrom(state) {
     specHash: state.artifacts.specHash,
     planHash: state.artifacts.planHash,
     tasksHash: state.artifacts.tasksHash,
-    commit: state.repository.commit,
-    dirtyTreeHash: state.repository.dirtyTreeHash,
+    commit: repositorySnapshot.commit,
+    dirtyTreeHash: repositorySnapshot.dirtyTreeHash,
   };
+}
+
+function clarificationComplete(clarification) {
+  return clarification && clarification.questions.every((question) => clarification.answers[question.id]);
 }
 
 function requireExecutionReady(state) {
   if (state.artifacts.planStatus !== "current" || state.artifacts.tasksStatus !== "current") throw new DuckbillError("ARTIFACT_STALE", "plan and tasks must be current");
-  if (state.pendingClarification) throw new DuckbillError("CLARIFICATION_PENDING", "pending clarification must be resumed first");
+  if (state.pendingClarification && !clarificationComplete(state.pendingClarification)) throw new DuckbillError("CLARIFICATION_PENDING", "pending clarification must be answered first");
   if (state.currentOperation) throw new DuckbillError("OPERATION_RUNNING", `operation already running for ${state.currentOperation.taskId}`);
 }
 
-export function beginOperation(state, {type, taskId, command, feedback = null, feedbackReferences = [], tasksModel}) {
+export function beginOperation(state, {type, taskId, command, feedback = null, feedbackReferences = [], writePaths = [], repositorySnapshot = state.repository, tasksModel}) {
   return mutate(state, (next) => {
     requireExecutionReady(next);
+    if (clarificationComplete(next.pendingClarification)) next.pendingClarification = null;
     if (!["execute", "repair"].includes(type)) throw new DuckbillError("INVALID_OPERATION", "operation type must be execute or repair");
     const task = next.tasks[taskId];
     const definition = tasksModel?.tasks?.find((item) => item.id === taskId);
@@ -321,13 +344,15 @@ export function beginOperation(state, {type, taskId, command, feedback = null, f
     if (incompletePrerequisites.length) throw new DuckbillError("INCOMPLETE_PREREQUISITES", `task prerequisites are incomplete: ${incompletePrerequisites.join(", ")}`);
     const incomplete = definition.dependencies.filter((id) => next.tasks[id]?.status !== "completed");
     if (incomplete.length) throw new DuckbillError("INCOMPLETE_DEPENDENCIES", `task dependencies are incomplete: ${incomplete.join(", ")}`);
-    const operation = {type, taskId, command, feedback, feedbackReferences: [...feedbackReferences], startedFrom: startedFrom(next)};
+    const normalizedWritePaths = unique(writePaths.map(normalizeRepositoryPath)).sort();
+    const operation = {type, taskId, command, feedback, feedbackReferences: [...feedbackReferences], writePaths: normalizedWritePaths, startedFrom: startedFrom(next, repositorySnapshot)};
     task.attempts.push({
       number: task.attempts.length + 1,
       type,
       command,
       feedback,
       feedbackReferences: [...feedbackReferences],
+      writePaths: normalizedWritePaths,
       startedFrom: operation.startedFrom,
       outcome: null,
       evidence: {},
@@ -349,6 +374,23 @@ function normalizeEvidenceMap(evidence) {
   return structuredClone(evidence);
 }
 
+export function deriveTaskOutcome({implementationStatus, evidence, boundaryOk = true, ownershipConflict = false}) {
+  if (!boundaryOk || ownershipConflict) return "blocked";
+  const records = Object.values(evidence ?? {});
+  if (records.length === 0) return "blocked";
+  if (records.some((record) => record.result === "blocked" || record.stale)) return "blocked";
+  if (records.some((record) => record.result === "failed")) return implementationStatus === "partial" ? "partial" : "failed";
+  if (records.every((record) => record.result === "passed")) return "completed";
+  return "blocked";
+}
+
+export function deriveValidationStatus(evidence) {
+  const records = Object.values(evidence ?? {});
+  if (records.length === 0 || records.some((record) => record.result === "blocked" || record.stale)) return "blocked";
+  if (records.some((record) => record.result === "failed")) return "failed";
+  return records.every((record) => record.result === "passed") ? "passed" : "blocked";
+}
+
 export function finishOperation(state, {taskId, outcome, evidence, expectedCheckIds = null}) {
   return mutate(state, (next) => {
     if (!next.currentOperation || next.currentOperation.taskId !== taskId) throw new DuckbillError("INVALID_OPERATION", `current operation is not ${taskId}`);
@@ -366,7 +408,7 @@ export function finishOperation(state, {taskId, outcome, evidence, expectedCheck
     }
     const allPassed = Object.values(normalized).every((record) => record.result === "passed" && !record.stale);
     if (outcome === "completed" && !allPassed) throw new DuckbillError("INVALID_OUTCOME", "completed outcome requires all current evidence to pass");
-    if (outcome !== "completed" && allPassed) throw new DuckbillError("INVALID_OUTCOME", `${outcome} outcome cannot contain only passing evidence`);
+    if (["partial", "failed"].includes(outcome) && allPassed) throw new DuckbillError("INVALID_OUTCOME", `${outcome} outcome cannot contain only passing evidence`);
     const task = next.tasks[taskId];
     const attempt = task.attempts.at(-1);
     attempt.outcome = outcome;
@@ -400,12 +442,18 @@ export function abandonInvalidatedOperation(state, reason = "operation-invalidat
 
 export function saveClarification(state, context) {
   return mutate(state, (next) => {
-    if (next.pendingClarification) throw new DuckbillError("CLARIFICATION_PENDING", "clarification is already pending");
+    if (next.pendingClarification && !clarificationComplete(next.pendingClarification)) {
+      throw new DuckbillError("CLARIFICATION_PENDING", "clarification is already pending");
+    }
+    if (next.pendingClarification && (next.pendingClarification.command !== context.command || next.pendingClarification.skillMode !== context.skillMode)) {
+      throw new DuckbillError("CLARIFICATION_PENDING", "answered clarification belongs to another operation");
+    }
     if (!["specification", "plan"].includes(context.owner) || !Array.isArray(context.questions) || context.questions.length === 0) {
       throw new DuckbillError("INVALID_CLARIFICATION", "clarification requires owner and questions");
     }
     const ids = context.questions.map((question) => question.id);
     if (new Set(ids).size !== ids.length || ids.some((id) => !/^Q-\d{3}$/u.test(id))) throw new DuckbillError("INVALID_CLARIFICATION", "question IDs must be unique Q-### values");
+    const source = context.startedFrom ?? state.artifacts;
     next.pendingClarification = {
       owner: context.owner,
       questions: structuredClone(context.questions),
@@ -413,27 +461,30 @@ export function saveClarification(state, context) {
       skillMode: context.skillMode,
       arguments: structuredClone(context.arguments ?? {}),
       answers: structuredClone(context.answers ?? {}),
+      startedFrom: Object.fromEntries(["specHash", "planHash", "tasksHash"].map((name) => [name, source[name] ?? null])),
     };
   });
 }
 
-export function resumeClarification(state, answers) {
-  let resolvedContext;
+export function resumeClarification(state, answers, currentHashes = state.artifacts) {
+  let context;
+  let stale = false;
   const next = mutate(state, (draft) => {
     if (!draft.pendingClarification) throw new DuckbillError("NO_PENDING_CLARIFICATION", "there is no pending clarification");
     if (!plainObject(answers)) throw new DuckbillError("INVALID_CLARIFICATION_ANSWERS", "answers must be an object keyed by question ID");
+    stale = ["specHash", "planHash", "tasksHash"].some((name) => draft.pendingClarification.startedFrom[name] !== currentHashes[name]);
+    if (stale) {
+      draft.pendingClarification = null;
+      return;
+    }
     const allowed = new Set(draft.pendingClarification.questions.map((question) => question.id));
     for (const [id, answer] of Object.entries(answers)) {
       if (!allowed.has(id) || typeof answer !== "string" || !answer.trim()) throw new DuckbillError("INVALID_CLARIFICATION_ANSWERS", `invalid answer for ${id}`);
       draft.pendingClarification.answers[id] = answer.trim();
     }
-    const complete = [...allowed].every((id) => draft.pendingClarification.answers[id]);
-    if (complete) {
-      resolvedContext = structuredClone(draft.pendingClarification);
-      draft.pendingClarification = null;
-    }
+    context = structuredClone(draft.pendingClarification);
   });
-  return {state: next, complete: Boolean(resolvedContext), context: resolvedContext ?? next.pendingClarification};
+  return {state: next, stale, complete: !stale && clarificationComplete(next.pendingClarification), context: stale ? null : context};
 }
 
 export function recordPrerequisites(state, evidence, expectedIds = null) {
@@ -459,6 +510,7 @@ export function recordSpecification(state, {specHash, repository}) {
     }
     next.artifacts.specHash = specHash;
     next.repository = {commit: repository.commit, dirtyTreeHash: repository.dirtyTreeHash};
+    next.pendingClarification = null;
   });
 }
 
@@ -497,12 +549,12 @@ function expandDependents(initial, ...taskModels) {
   return affected;
 }
 
-function invalidateTaskRecord(record, reason) {
+function invalidateTaskRecord(record, reason, status = null) {
   if (record.status === "running") {
     const attempt = record.attempts.at(-1);
     if (attempt) attempt.outcome = "stale";
   }
-  record.status = ["completed", "running", "stale"].includes(record.status) ? "stale" : "pending";
+  record.status = status ?? (["completed", "running", "stale"].includes(record.status) ? "stale" : "pending");
   record.evidence = {};
   record.staleReasons = unique([...record.staleReasons, reason]);
 }
@@ -558,7 +610,7 @@ export function reconcileTasks(state, options) {
     for (const task of newTasks.tasks) {
       const record = structuredClone(draft.tasks[task.id] ?? taskRecord());
       record.retired = false;
-      if (affected.has(task.id)) invalidateTaskRecord(record, "artifact-reconciled");
+      if (affected.has(task.id)) invalidateTaskRecord(record, "artifact-reconciled", "pending");
       else {
         for (const evidence of Object.values(record.evidence)) {
           evidence.specHash = hashes.specHash;
@@ -572,7 +624,7 @@ export function reconcileTasks(state, options) {
       if (!newById[id]) {
         const record = structuredClone(draft.tasks[id] ?? taskRecord());
         record.retired = true;
-        invalidateTaskRecord(record, "task-retired");
+        invalidateTaskRecord(record, "task-retired", "stale");
         nextRecords[id] = record;
       }
     }
@@ -591,6 +643,7 @@ export function reconcileTasks(state, options) {
     };
     draft.repository = {commit: repository.commit, dirtyTreeHash: repository.dirtyTreeHash};
     draft.validation = {status: "stale", evidence: {}, staleReasons: ["artifacts-reconciled"]};
+    draft.pendingClarification = null;
   });
   return {state: next, affectedTaskIds: [...affected].sort(), changedIntentIds: [...changedIntentIds].sort()};
 }
@@ -616,8 +669,9 @@ export function invalidateAfterSpecChange(state, {oldSpec, newSpec, tasksModel, 
   const direct = (tasksModel?.tasks ?? []).filter((task) => [...task.scenarios, ...task.requirements].some((id) => changed.has(id))).map((task) => task.id);
   const result = invalidateMappedTasks(state, tasksModel, direct, "specification-changed");
   result.state.artifacts.specHash = specHash;
-  result.state.artifacts.planStatus = "stale";
-  result.state.artifacts.tasksStatus = "stale";
+  if (result.state.artifacts.planStatus !== "missing") result.state.artifacts.planStatus = "stale";
+  if (result.state.artifacts.tasksStatus !== "missing") result.state.artifacts.tasksStatus = "stale";
+  result.state.pendingClarification = null;
   assertValidState(result.state);
   return result;
 }
@@ -628,6 +682,7 @@ export function invalidateAfterPlanChange(state, {oldPlan, newPlan, tasksModel, 
   const result = invalidateMappedTasks(state, tasksModel, direct, "plan-changed");
   result.state.artifacts.planHash = planHash;
   result.state.artifacts.tasksStatus = "stale";
+  result.state.pendingClarification = null;
   assertValidState(result.state);
   return result;
 }
@@ -715,6 +770,7 @@ export function recordFeatureValidation(state, {status, evidence}) {
 export function generateStatusData(state, context = {}) {
   const currentHashes = context.hashes ?? state.artifacts;
   const currentSnapshot = context.snapshot ?? state.repository;
+  const operationSnapshot = context.operationSnapshot ?? currentSnapshot;
   const counts = Object.fromEntries(TASK_STATUSES.map((status) => [status, 0]));
   for (const task of Object.values(state.tasks)) if (!task.retired) counts[task.status] += 1;
   const artifactStaleness = {
@@ -733,9 +789,10 @@ export function generateStatusData(state, context = {}) {
     for (const name of ["specHash", "planHash", "tasksHash"]) {
       if (state.currentOperation.startedFrom[name] !== currentHashes[name]) currentOperationStaleness.push(`${name}-changed`);
     }
-    if (state.currentOperation.startedFrom.commit !== currentSnapshot.commit) currentOperationStaleness.push("commit-changed");
-    if (state.currentOperation.startedFrom.dirtyTreeHash !== currentSnapshot.dirtyTreeHash) currentOperationStaleness.push("dirty-tree-changed");
+    if (state.currentOperation.startedFrom.commit !== operationSnapshot.commit) currentOperationStaleness.push("commit-changed");
+    if (state.currentOperation.startedFrom.dirtyTreeHash !== operationSnapshot.dirtyTreeHash) currentOperationStaleness.push("dirty-tree-changed");
   }
+  const specStatus = context.specStatus ?? "unknown";
   let next = null;
   if (state.pendingClarification) {
     const args = Array.isArray(state.pendingClarification.arguments.argv)
@@ -743,6 +800,9 @@ export function generateStatusData(state, context = {}) {
       : Object.values(state.pendingClarification.arguments).map(String);
     next = {command: state.pendingClarification.command, args};
   }
+  else if (specStatus === "draft") next = {command: "duck-spec", args: [state.featureId]};
+  else if (["missing", "unknown"].includes(specStatus)) next = null;
+  else if (artifactStaleness.plan === "missing" && artifactStaleness.tasks === "missing") next = {command: "duck-plan", args: [state.featureId]};
   else if (artifactStaleness.plan !== "current" || artifactStaleness.tasks !== "current") next = {command: "duck-sync", args: [state.featureId]};
   else if (state.currentOperation?.type === "repair") next = {
     command: state.currentOperation.command,
@@ -750,13 +810,23 @@ export function generateStatusData(state, context = {}) {
   };
   else if (state.currentOperation) next = {command: state.currentOperation.command, args: [state.featureId, state.currentOperation.taskId]};
   else {
-    const pending = Object.entries(state.tasks).find(([, task]) => !task.retired && ["pending", "partial", "failed"].includes(task.status));
+    const taskDefinitions = context.tasksModel?.tasks ?? [];
+    const pending = Object.entries(state.tasks).find(([id, task]) => {
+      if (task.retired || !["pending", "partial", "failed"].includes(task.status)) return false;
+      const definition = taskDefinitions.find((item) => item.id === id);
+      return definition && definition.dependencies.every((dependency) => state.tasks[dependency]?.status === "completed");
+    });
     if (pending) next = {command: "duck-execute", args: [state.featureId, pending[0]]};
-    else if (state.validation.status !== "passed") next = {command: "duck-validate", args: [state.featureId]};
+    else {
+      const requiredTasks = Object.values(state.tasks).filter((task) => !task.retired);
+      if (requiredTasks.length > 0 && requiredTasks.every((task) => task.status === "completed") && state.validation.status !== "passed") {
+        next = {command: "duck-validate", args: [state.featureId]};
+      }
+    }
   }
   return {
     feature: state.featureId,
-    specStatus: context.specStatus ?? "unknown",
+    specStatus,
     planStatus: artifactStaleness.plan,
     tasksStatus: artifactStaleness.tasks,
     currentOperation: state.currentOperation,
@@ -828,20 +898,21 @@ function readOptionalArtifact(path, parser) {
   return parser(readFileSync(resolve(path), "utf8")).model;
 }
 
+function currentArtifactHashes(repoRoot, paths) {
+  const input = {specPath: paths.spec, planPath: paths.plan, tasksPath: paths.tasks};
+  for (const [sourceName, repositoryPath] of [["specSource", paths.spec], ["planSource", paths.plan], ["tasksSource", paths.tasks]]) {
+    const absolute = safeJoin(repoRoot, repositoryPath);
+    if (existsSync(absolute)) input[sourceName] = readFileSync(absolute, "utf8");
+  }
+  return checkArtifacts(input).hashes;
+}
+
 function main(argv) {
   const {command, options} = parseArgs(argv);
   const repoRoot = resolve(options.repo ?? process.cwd());
   const featureId = required(options, "feature");
   const paths = canonicalFeaturePaths(featureId);
   const statePath = safeJoin(repoRoot, paths.state);
-  if (command === "init") {
-    const artifacts = checkFeature(repoRoot, featureId, {spec: false, plan: false, tasks: false});
-    const snapshot = captureRepositorySnapshot(repoRoot);
-    const state = initializeState({featureId, hashes: artifacts.hashes, repository: snapshot});
-    initializeStateFile(statePath, state);
-    process.stdout.write(`${JSON.stringify({ok: true, revision: state.revision, state})}\n`);
-    return;
-  }
   if (command === "read") {
     process.stdout.write(`${JSON.stringify({ok: true, state: loadState(statePath)})}\n`);
     return;
@@ -859,7 +930,16 @@ function main(argv) {
       ...Object.values(state.validation.evidence).flatMap((record) => record.observedPaths ?? []),
     ]);
     const snapshot = captureRepositorySnapshot(repoRoot, {observedPaths});
-    const status = generateStatusData(state, {hashes: checked.hashes, snapshot, specStatus: checked.artifacts.spec?.status ?? "missing"});
+    const operationSnapshot = state.currentOperation
+      ? captureRepositorySnapshot(repoRoot, {excludePaths: state.currentOperation.writePaths})
+      : snapshot;
+    const status = generateStatusData(state, {
+      hashes: checked.hashes,
+      snapshot,
+      operationSnapshot,
+      specStatus: checked.artifacts.spec?.status ?? "missing",
+      tasksModel: checked.artifacts.tasks,
+    });
     process.stdout.write(`${JSON.stringify({ok: true, deterministicChecksPass: checked.ok, checkErrors: checked.errors, status})}\n`);
     return;
   }
@@ -875,7 +955,13 @@ function main(argv) {
     const dependencyEvidence = taskDefinition.dependencies.flatMap((id) => Object.values(current.tasks[id]?.evidence ?? {}));
     const preflightEvidence = [...Object.values(current.prerequisites), ...dependencyEvidence];
     const preflightMap = Object.fromEntries(preflightEvidence.map((record, index) => [`preflight-${index}`, record]));
-    const snapshot = captureRepositorySnapshot(repoRoot, {observedPaths: unique(preflightEvidence.flatMap((record) => record.observedPaths ?? []))});
+    const writePaths = options["write-paths"] ? JSON.parse(options["write-paths"]) : [];
+    if (!Array.isArray(writePaths)) throw new DuckbillError("INVALID_ARGUMENT", "write-paths must be a JSON array");
+    for (const path of writePaths) validateRepositoryPath(repoRoot, path);
+    const snapshot = captureRepositorySnapshot(repoRoot, {
+      observedPaths: unique(preflightEvidence.flatMap((record) => record.observedPaths ?? [])),
+      excludePaths: writePaths.map(normalizeRepositoryPath),
+    });
     assertEvidenceSnapshot(preflightMap, checked.hashes, snapshot);
     const state = commitMutation(statePath, expected, (currentState) => beginOperation(currentState, {
       type: required(options, "type"),
@@ -883,6 +969,8 @@ function main(argv) {
       command: required(options, "command"),
       feedback: options.feedback ?? null,
       feedbackReferences: options["feedback-references"] ? JSON.parse(options["feedback-references"]) : [],
+      writePaths,
+      repositorySnapshot: snapshot,
       tasksModel: checked.artifacts.tasks,
     }));
     process.stdout.write(`${JSON.stringify({ok: true, revision: state.revision, state})}\n`);
@@ -897,19 +985,31 @@ function main(argv) {
     const taskEvidence = evidenceJson(options);
     const snapshot = captureRepositorySnapshot(repoRoot, {observedPaths: unique(Object.values(taskEvidence).flatMap((item) => item.observedPaths ?? []))});
     assertEvidenceSnapshot(taskEvidence, checked.hashes, snapshot);
-    const state = commitMutation(statePath, expected, (current) => finishOperation(current, {taskId, outcome: required(options, "outcome"), evidence: taskEvidence, expectedCheckIds: definition.checks.map((check) => check.id)}));
+    const requestedOutcome = options.outcome ?? "auto";
+    const outcome = requestedOutcome === "auto" ? deriveTaskOutcome({
+      implementationStatus: options["implementation-status"] ?? "completed",
+      evidence: taskEvidence,
+      boundaryOk: options["boundary-ok"] !== "false",
+      ownershipConflict: options["ownership-conflict"] === "true",
+    }) : requestedOutcome;
+    const state = commitMutation(statePath, expected, (current) => finishOperation(current, {taskId, outcome, evidence: taskEvidence, expectedCheckIds: definition.checks.map((check) => check.id)}));
     process.stdout.write(`${JSON.stringify({ok: true, revision: state.revision, state})}\n`);
     return;
   }
   if (command === "clarify") {
     const context = JSON.parse(required(options, "context"));
+    context.startedFrom = currentArtifactHashes(repoRoot, paths);
     const state = commitMutation(statePath, expected, (current) => saveClarification(current, context));
     process.stdout.write(`${JSON.stringify({ok: true, revision: state.revision, state})}\n`);
     return;
   }
   if (command === "resume") {
-    const result = commitMutation(statePath, expected, (current) => resumeClarification(current, JSON.parse(required(options, "answers"))));
-    process.stdout.write(`${JSON.stringify({ok: true, revision: result.state.revision, complete: result.complete, context: result.context})}\n`);
+    const result = commitMutation(statePath, expected, (current) => resumeClarification(
+      current,
+      JSON.parse(required(options, "answers")),
+      currentArtifactHashes(repoRoot, paths),
+    ));
+    process.stdout.write(`${JSON.stringify({ok: true, revision: result.state.revision, stale: result.stale, complete: result.complete, context: result.context})}\n`);
     return;
   }
   if (command === "abandon") {
@@ -952,7 +1052,8 @@ function main(argv) {
     const checked = checkFeature(repoRoot, featureId, {spec: true, plan: false, tasks: false});
     if (!checked.ok) throw new DuckbillError("ARTIFACT_CHECK_FAILED", "cannot persist an invalid specification", {errors: checked.errors});
     const oldSpec = readOptionalArtifact(required(options, "old-spec"), parseSpec);
-    const tasksModel = parseTasks(readFileSync(safeJoin(repoRoot, paths.tasks), "utf8"), {path: paths.tasks}).model;
+    const tasksPath = safeJoin(repoRoot, paths.tasks);
+    const tasksModel = existsSync(tasksPath) ? parseTasks(readFileSync(tasksPath, "utf8"), {path: paths.tasks}).model : null;
     const result = commitMutation(statePath, expected, (current) => invalidateAfterSpecChange(current, {
       oldSpec,
       newSpec: checked.artifacts.spec,
@@ -988,11 +1089,13 @@ function main(argv) {
     assertEvidenceSnapshot(validationEvidence, checked.hashes, snapshot);
     const prerequisites = featureValidationPrerequisites(loadState(statePath), {hashes: checked.hashes, snapshot, tasksModel: checked.artifacts.tasks});
     if (!prerequisites.ok) throw new DuckbillError("VALIDATION_BLOCKED", "feature validation prerequisites failed", {reasons: prerequisites.reasons});
-    const state = commitMutation(statePath, expected, (current) => recordFeatureValidation(current, {status: required(options, "status"), evidence: validationEvidence, repository: snapshot}));
+    const requestedStatus = options.status ?? "auto";
+    const status = requestedStatus === "auto" ? deriveValidationStatus(validationEvidence) : requestedStatus;
+    const state = commitMutation(statePath, expected, (current) => recordFeatureValidation(current, {status, evidence: validationEvidence}));
     process.stdout.write(`${JSON.stringify({ok: true, revision: state.revision})}\n`);
     return;
   }
-  throw new DuckbillError("INVALID_ARGUMENT", "usage: state.mjs init|read|record-spec|begin|finish|abandon|clarify|resume|reconcile|invalidate-spec|record-prerequisites|refresh-evidence|record-validation|status [options]");
+  throw new DuckbillError("INVALID_ARGUMENT", "usage: state.mjs read|record-spec|begin|finish|abandon|clarify|resume|reconcile|invalidate-spec|record-prerequisites|refresh-evidence|record-validation|status [options]");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

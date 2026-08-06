@@ -14,8 +14,6 @@
   "files": [
     "prompts",
     "skills",
-    "scripts",
-    "templates",
     "README.md",
     "LICENSE"
   ],

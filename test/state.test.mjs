@@ -3,11 +3,14 @@ import {mkdtempSync, readFileSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import test from "node:test";
-import {parsePlan, parseSpec, parseTasks} from "../scripts/check.mjs";
+import {parsePlan, parseSpec, parseTasks} from "../skills/duckbill-runtime/scripts/check.mjs";
 import {
   beginOperation,
+  deriveTaskOutcome,
+  deriveValidationStatus,
   featureValidationPrerequisites,
   finishOperation,
+  generateStatusData,
   initializeState,
   initializeStateFile,
   invalidateAfterPlanChange,
@@ -21,8 +24,8 @@ import {
   saveClarification,
   validateState,
   writeState,
-} from "../scripts/state.mjs";
-import {sha256} from "../scripts/utils.mjs";
+} from "../skills/duckbill-runtime/scripts/state.mjs";
+import {sha256} from "../skills/duckbill-runtime/scripts/utils.mjs";
 
 const fixtureRoot = join(import.meta.dirname, "fixtures", "valid", ".duckbill", "specs", "password-authentication");
 const specSource = readFileSync(join(fixtureRoot, "spec.md"), "utf8");
@@ -62,6 +65,8 @@ function begin(state, options = {}) {
     command: options.command ?? (options.type === "repair" ? "duck-refine" : "duck-execute"),
     feedback: options.feedback ?? null,
     feedbackReferences: options.feedbackReferences ?? [],
+    writePaths: options.writePaths ?? [],
+    repositorySnapshot: options.repositorySnapshot ?? repository,
     tasksModel: options.tasksModel ?? tasksModel,
   });
 }
@@ -81,6 +86,28 @@ test("state initialization", () => {
   assert.equal(state.revision, 1);
   assert.equal(state.tasks["implement-password-authentication"].status, "pending");
   assert.deepEqual(validateState(state), []);
+});
+
+test("draft status routes to duck-spec and ready unplanned status routes to duck-plan", () => {
+  const specHash = sha256("draft-spec");
+  const state = initializeState({featureId: "password-authentication", hashes: {specHash}, repository});
+  const context = {hashes: {specHash, planHash: null, tasksHash: null}, snapshot: repository};
+  const draftStatus = generateStatusData(state, {...context, specStatus: "draft"});
+  assert.deepEqual(draftStatus.next, {command: "duck-spec", args: ["password-authentication"]});
+  const readyStatus = generateStatusData(state, {...context, specStatus: "ready"});
+  assert.deepEqual(readyStatus.next, {command: "duck-plan", args: ["password-authentication"]});
+  const missingStatus = generateStatusData(state, {...context, specStatus: "missing"});
+  assert.equal(missingStatus.next, null);
+});
+
+test("status selects only a dependency-ready task", () => {
+  const model = {tasks: [task("first"), task("second", ["first"])]};
+  const state = makeState(model);
+  const status = generateStatusData(state, {hashes, snapshot: repository, specStatus: "ready", tasksModel: model});
+  assert.deepEqual(status.next, {command: "duck-execute", args: ["password-authentication", "first"]});
+  state.tasks.first.status = "blocked";
+  const blocked = generateStatusData(state, {hashes, snapshot: repository, specStatus: "ready", tasksModel: model});
+  assert.equal(blocked.next, null);
 });
 
 test("invalid schema", () => {
@@ -165,6 +192,33 @@ test("interrupted repair and feedback persist", () => {
   assert.deepEqual(state.tasks[tasksModel.tasks[0].id].attempts.at(-1).feedbackReferences, ["src/auth.js"]);
 });
 
+test("interrupted operation ignores its own write paths but detects ambient drift", () => {
+  const running = begin(makeState(), {writePaths: ["src/auth.js"]});
+  assert.deepEqual(running.currentOperation.writePaths, ["src/auth.js"]);
+  assert.deepEqual(running.tasks[tasksModel.tasks[0].id].attempts.at(-1).writePaths, ["src/auth.js"]);
+  const ownChangesExcluded = {...repository, dirtyTreeHash: repository.dirtyTreeHash};
+  const currentTree = {...repository, dirtyTreeHash: sha256("task changed its file")};
+  const current = generateStatusData(running, {hashes, snapshot: currentTree, operationSnapshot: ownChangesExcluded, specStatus: "ready", tasksModel});
+  assert.deepEqual(current.currentOperationStaleness, []);
+  const ambient = generateStatusData(running, {hashes, snapshot: currentTree, operationSnapshot: currentTree, specStatus: "ready", tasksModel});
+  assert.deepEqual(ambient.currentOperationStaleness, ["dirty-tree-changed"]);
+});
+
+test("task and validation outcomes are derived from evidence", () => {
+  assert.equal(deriveTaskOutcome({implementationStatus: "unchanged", evidence: evidence("passed")}), "completed");
+  assert.equal(deriveTaskOutcome({implementationStatus: "partial", evidence: evidence("failed")}), "partial");
+  assert.equal(deriveTaskOutcome({implementationStatus: "completed", evidence: evidence("passed"), boundaryOk: false}), "blocked");
+  assert.equal(deriveValidationStatus(evidence("passed", "VAL-001")), "passed");
+  assert.equal(deriveValidationStatus(evidence("failed", "VAL-001")), "failed");
+  assert.equal(deriveValidationStatus({...evidence("passed", "VAL-001"), ...evidence("blocked", "VAL-002")}), "blocked");
+});
+
+test("boundary failure may block a task even when focused checks passed", () => {
+  const running = begin(makeState());
+  const state = finishOperation(running, {taskId: tasksModel.tasks[0].id, outcome: "blocked", evidence: evidence("passed")});
+  assert.equal(state.tasks[tasksModel.tasks[0].id].status, "blocked");
+});
+
 test("pending clarification", () => {
   const state = saveClarification(makeState(), {
     owner: "specification",
@@ -175,6 +229,8 @@ test("pending clarification", () => {
   });
   assert.equal(state.pendingClarification.owner, "specification");
   assert.equal(state.pendingClarification.command, "duck-spec");
+  assert.deepEqual(state.pendingClarification.startedFrom, hashes);
+  assert.deepEqual(validateState(state), []);
 });
 
 test("clarification resume", () => {
@@ -187,8 +243,58 @@ test("clarification resume", () => {
   });
   const result = resumeClarification(pending, {"Q-001": "Use the existing authentication boundary"});
   assert.equal(result.complete, true);
-  assert.equal(result.state.pendingClarification, null);
+  assert.equal(result.stale, false);
+  assert.equal(result.state.pendingClarification.answers["Q-001"], "Use the existing authentication boundary");
   assert.equal(result.context.answers["Q-001"], "Use the existing authentication boundary");
+});
+
+test("stale clarification is discarded instead of applying old answers", () => {
+  const pending = saveClarification(makeState(), {
+    owner: "specification",
+    questions: [{id: "Q-001", reason: "Changes behavior", question: "Which behavior?", options: []}],
+    command: "duck-spec",
+    skillMode: "create-spec",
+    arguments: {feature: "password-authentication"},
+  });
+  const result = resumeClarification(pending, {"Q-001": "Old answer"}, {...hashes, specHash: sha256("changed-spec")});
+  assert.equal(result.stale, true);
+  assert.equal(result.complete, false);
+  assert.equal(result.context, null);
+  assert.equal(result.state.pendingClarification, null);
+});
+
+test("answered execution clarification is consumed atomically by begin", () => {
+  const pending = saveClarification(makeState(), {
+    owner: "plan",
+    questions: [{id: "Q-001", reason: "Changes proof approach", question: "Which focused check?", options: []}],
+    command: "duck-execute",
+    skillMode: "execute",
+    arguments: {feature: "password-authentication", task: tasksModel.tasks[0].id},
+  });
+  const answered = resumeClarification(pending, {"Q-001": "Use the existing focused test"}).state;
+  const running = begin(answered);
+  assert.equal(running.pendingClarification, null);
+  assert.equal(running.currentOperation.type, "execute");
+});
+
+test("a semantic operation can replace an answered clarification with a new round", () => {
+  const first = saveClarification(makeState(), {
+    owner: "plan",
+    questions: [{id: "Q-001", reason: "Changes architecture", question: "Which boundary?", options: []}],
+    command: "duck-plan",
+    skillMode: "create-plan",
+    arguments: {feature: "password-authentication"},
+  });
+  const answered = resumeClarification(first, {"Q-001": "Use the service boundary"}).state;
+  const second = saveClarification(answered, {
+    owner: "plan",
+    questions: [{id: "Q-002", reason: "Changes rollout", question: "Which rollout order?", options: []}],
+    command: "duck-plan",
+    skillMode: "create-plan",
+    arguments: {feature: "password-authentication"},
+  });
+  assert.deepEqual(second.pendingClarification.questions.map((question) => question.id), ["Q-002"]);
+  assert.deepEqual(second.pendingClarification.answers, {});
 });
 
 test("affected task reset and transitive dependent reset", () => {
@@ -198,7 +304,7 @@ test("affected task reset and transitive dependent reset", () => {
   const newTasks = {tasks: [task("first", [], "new"), task("second", ["first"]), task("third", ["second"])]};
   const result = reconcileTasks(state, {oldTasks, newTasks, hashes, repository});
   assert.deepEqual(result.affectedTaskIds, ["first", "second", "third"]);
-  assert.equal(result.state.tasks.third.status, "stale");
+  assert.equal(result.state.tasks.third.status, "pending");
   assert.equal(result.state.tasks.third.attempts.length, 0);
 });
 
@@ -213,7 +319,7 @@ test("unaffected evidence preservation", () => {
   const result = reconcileTasks(state, {oldTasks, newTasks, hashes, repository});
   assert.equal(result.state.tasks.first.status, "completed");
   assert.deepEqual(result.state.tasks.first.evidence, state.tasks.first.evidence);
-  assert.equal(result.state.tasks.second.status, "stale");
+  assert.equal(result.state.tasks.second.status, "pending");
 });
 
 test("final validation prerequisites", () => {
@@ -238,6 +344,17 @@ test("invalidation after spec change", () => {
   assert.equal(result.state.tasks[tasksModel.tasks[0].id].status, "stale");
 });
 
+test("spec refinement before planning keeps absent downstream artifacts missing", () => {
+  const oldHash = sha256("old-draft");
+  const newHash = sha256("new-ready-spec");
+  const state = initializeState({featureId: "password-authentication", hashes: {specHash: oldHash}, repository});
+  const result = invalidateAfterSpecChange(state, {oldSpec: specModel, newSpec: specModel, tasksModel: null, specHash: newHash});
+  assert.equal(result.state.artifacts.specHash, newHash);
+  assert.equal(result.state.artifacts.planStatus, "missing");
+  assert.equal(result.state.artifacts.tasksStatus, "missing");
+  assert.equal(result.state.validation.status, "stale");
+});
+
 test("invalidation after plan change", () => {
   const completed = complete(makeState());
   const newPlan = parsePlan(planSource.replace("generic denial behavior; credential", "constant generic denial behavior; credential")).model;
@@ -250,12 +367,45 @@ test("invalidation after task change", () => {
   const completed = complete(makeState());
   const newTasks = parseTasks(tasksSource.replace("Add password verification", "Add bounded password verification")).model;
   const result = reconcileTasks(completed, {oldTasks: tasksModel, newTasks, oldSpec: specModel, newSpec: specModel, oldPlan: planModel, newPlan: planModel, hashes: {...hashes, tasksHash: sha256("new-tasks")}, repository});
-  assert.equal(result.state.tasks[tasksModel.tasks[0].id].status, "stale");
+  assert.equal(result.state.tasks[tasksModel.tasks[0].id].status, "pending");
   assert.equal(result.state.tasks[tasksModel.tasks[0].id].attempts.length, 1);
 });
 
+test("specification refinement flow blocks execution until sync and resets affected work", () => {
+  const completed = complete(makeState());
+  const newSpec = parseSpec(specSource.replace("accepts valid credentials", "accepts active valid credentials")).model;
+  const invalidated = invalidateAfterSpecChange(completed, {
+    oldSpec: specModel,
+    newSpec,
+    tasksModel,
+    specHash: sha256("refined-spec"),
+  });
+  assert.throws(() => begin(invalidated.state), {code: "ARTIFACT_STALE"});
+
+  const syncedHashes = {...hashes, specHash: sha256("refined-spec"), planHash: sha256("synced-plan"), tasksHash: sha256("synced-tasks")};
+  const synced = reconcileTasks(invalidated.state, {
+    oldTasks: tasksModel,
+    newTasks: tasksModel,
+    oldSpec: specModel,
+    newSpec,
+    oldPlan: planModel,
+    newPlan: planModel,
+    hashes: syncedHashes,
+    repository,
+  });
+  assert.equal(synced.state.tasks[tasksModel.tasks[0].id].status, "pending");
+  assert.deepEqual(synced.state.tasks[tasksModel.tasks[0].id].evidence, {});
+  assert.equal(beginOperation(synced.state, {
+    type: "execute",
+    taskId: tasksModel.tasks[0].id,
+    command: "duck-execute",
+    tasksModel,
+    repositorySnapshot: repository,
+  }).currentOperation.type, "execute");
+});
+
 test("main fixture flow reaches passed feature validation one task at a time", () => {
-  let state = initializeState({featureId: "password-authentication", hashes: {}, repository});
+  let state = initializeState({featureId: "password-authentication", hashes: {specHash: sha256("draft-spec")}, repository});
   state = recordSpecification(state, {specHash: hashes.specHash, repository});
   const reconciled = reconcileTasks(state, {
     oldTasks: null,
@@ -284,5 +434,6 @@ test("integration fixture manifests cover required recovery flows", () => {
     const fixture = JSON.parse(readFileSync(join(directory, `${name}.json`), "utf8"));
     assert.equal(fixture.name, name);
     assert.ok(fixture.steps.length >= 3);
+    if (name === "main") assert.deepEqual(fixture.steps.slice(0, 3), ["init", "edit-draft", "spec"]);
   }
 });
