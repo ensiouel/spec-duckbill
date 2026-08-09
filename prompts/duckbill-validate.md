@@ -19,5 +19,6 @@ operation.
 
 Report operation status as `completed` or `stopped` and feature verdict separately as `accepted`, `rejected`, or
 `inconclusive`. Report evidence, failures, unavailable checks, and the semantic owner of each material finding.
-Translate the immediate owner and needed change into one useful copy-paste Duckbill command when possible, without
-inventing unresolved decisions or executing the command.
+Translate a specification finding into `/duckbill-refine-spec`, a planning finding into `/duckbill-refine-plan`, and an
+implementation finding into `/duckbill-refine-code` for an implemented task or `/duckbill-execute` for pending task
+work. Produce at most one useful copy-paste handoff, without inventing unresolved decisions or executing the command.

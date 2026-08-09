@@ -14,10 +14,6 @@
     "README.md",
     "LICENSE"
   ],
-  "scripts": {
-    "test": "node --test",
-    "verify": "npm test"
-  },
   "pi": {
     "prompts": [
       "./prompts"

@@ -19,4 +19,7 @@ belongs to code refinement. This command MAY modify application code, tests, and
 It MUST NOT modify the specification or plan, select a different task, or start another Duckbill operation.
 
 Finish with `completed` or `stopped`. Report changed files, verification, remaining blockers, and any upstream owner
-needed. If work remains, suggest an explicit next command without automatically choosing another task.
+needed. Translate a planning-owned stop into `/duckbill-refine-plan` and a specification-owned stop into
+`/duckbill-refine-spec`. If execution-owned work remains, suggest `/duckbill-refine-code` for an implemented task that
+needs adjustment or `/duckbill-execute` for pending task work. Do not execute a suggested command or automatically
+choose another task.

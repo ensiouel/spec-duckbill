@@ -1,14 +1,10 @@
 # Spec Duckbill
 
-Spec Duckbill is a Spec-Driven Development workflow for [Pi](https://pi.dev). It turns a feature idea into a
-specification, an implementation plan, executable tasks, and a final validation.
+Spec-driven development for [Pi](https://pi.dev): specification -> plan -> tasks -> code -> validation.
 
 ## Install
 
-Requirements:
-
-- Pi 0.83 or newer;
-- a ChatGPT Plus or Pro subscription for the configured OpenAI Codex models.
+Requires Pi 0.83+ and ChatGPT Plus or Pro.
 
 ```text
 /login openai-codex
@@ -19,7 +15,7 @@ pi install npm:pi-prompt-template-model
 pi install https://github.com/ensiouel/spec-duckbill
 ```
 
-Add Duckbill's prompt directory to `~/.pi/agent/settings.json`, preserving any existing `prompts` entries:
+Add the prompt directory to `~/.pi/agent/settings.json`, then restart Pi:
 
 ```json
 {
@@ -29,14 +25,25 @@ Add Duckbill's prompt directory to `~/.pi/agent/settings.json`, preserving any e
 }
 ```
 
-Restart Pi after installation.
+For a project-local installation, use `pi install -l` and `.pi/settings.json`.
 
-For a project-local installation, use `pi install -l` for both packages and put the setting in `.pi/settings.json`
-instead.
+## Commands
 
-## Quick start
+Use lowercase kebab-case feature names.
 
-Use a lowercase kebab-case feature name:
+| Command                                                                  | Purpose                             |
+|--------------------------------------------------------------------------|-------------------------------------|
+| `/duckbill-init <feature> [context...]`                                  | Create a draft specification        |
+| `/duckbill-spec <feature> [context...]`                                  | Develop the specification           |
+| `/duckbill-analyze <feature>`                                            | Review the specification read-only  |
+| `/duckbill-plan <feature> [context...]`                                  | Create the technical plan and tasks |
+| `/duckbill-refine-spec <feature> <product-feedback...>`                  | Refine product requirements         |
+| `/duckbill-refine-plan <feature> <technical-feedback...>`                | Refine technical design and tasks   |
+| `/duckbill-refine-code <feature> <task-id> <implementation-feedback...>` | Refine one task's implementation    |
+| `/duckbill-execute <feature> <task-id> [context...]`                     | Implement one pending task          |
+| `/duckbill-validate <feature>`                                           | Validate the feature read-only      |
+
+Typical flow:
 
 ```text
 /duckbill-init password-authentication "Add password sign-in"
@@ -46,65 +53,45 @@ Use a lowercase kebab-case feature name:
 /duckbill-validate password-authentication
 ```
 
-Read `tasks.md` after planning and execute each dependency-ready task by its ID. Run
-`/duckbill-analyze password-authentication` before planning when you want an optional specification review.
+## Refinement
 
-The usual flow is:
+Refinement is split because specification, planning, and implementation are separate ownership layers. Each command
+therefore has one capability, one input shape, and one mutation boundary.
 
-```text
-init → spec → plan → execute tasks → validate
-```
+| Command                | Skill                    | Profile                | May change                                                | Escalation                                                                        |
+|------------------------|--------------------------|------------------------|-----------------------------------------------------------|-----------------------------------------------------------------------------------|
+| `duckbill-refine-spec` | `duckbill-specification` | GPT-5.6 Sol / high     | `spec.md`                                                 | Stop on unresolved product decisions; suggest planning reconciliation when needed |
+| `duckbill-refine-plan` | `duckbill-planning`      | GPT-5.6 Sol / high     | `plan.md`, `tasks.md`                                     | WHAT/WHY changes -> specification                                                 |
+| `duckbill-refine-code` | `duckbill-execution`     | GPT-5.6 Terra / medium | Code, tests, justified configuration, selected task state | Technical design -> planning; WHAT/WHY -> specification                           |
 
-## Commands
-
-| Command                                                   | Purpose                                           |
-|-----------------------------------------------------------|---------------------------------------------------|
-| `/duckbill-init <feature> [context...]`                   | Start a feature and create a draft specification  |
-| `/duckbill-spec <feature> [context...]`                   | Develop the specification                         |
-| `/duckbill-analyze <feature>`                             | Review the specification without changing files   |
-| `/duckbill-plan <feature> [context...]`                   | Create the technical plan and tasks               |
-| `/duckbill-execute <feature> <task-id> [context...]`      | Implement one pending task                        |
-| `/duckbill-refine <feature> spec <feedback...>`           | Update product behavior or requirements           |
-| `/duckbill-refine <feature> plan <feedback...>`           | Update the technical plan and tasks               |
-| `/duckbill-refine <feature> code <task-id> <feedback...>` | Adjust an implementation                          |
-| `/duckbill-validate <feature>`                            | Check the finished feature without changing files |
-
-Duckbill always asks you to name the feature and, for implementation work, the task. It may stop to ask for a missing
-decision or suggest a next command, but it never starts the next operation automatically.
-
-## Refining a feature
-
-Use `refine` when something already written needs to change:
+Each command statically preloads one skill, uses `restore: true`, has no model fallback or boomerang, and never invokes
+a handoff automatically. Completed tasks remain eligible for code refinement; task state stays `pending` or
+`completed`.
 
 ```text
-/duckbill-refine checkout spec "Payment completion is now asynchronous"
-/duckbill-refine checkout plan "Update the design and tasks for asynchronous payment"
-/duckbill-refine checkout code T2 "Handle the existing timeout branch"
+/duckbill-refine-spec checkout "Payment completion is now asynchronous"
+/duckbill-refine-plan checkout "Reconcile the design and tasks"
+/duckbill-refine-code checkout T2 "Handle the timeout branch"
 ```
 
-Choose the scope by what changed:
+Advisory sequence: `refine-spec -> refine-plan -> refine-code / execute -> validate`. Start at the layer that owns the
+change.
 
-- `spec` for behavior, scope, constraints, or acceptance criteria;
-- `plan` for technical design or task breakdown;
-- `code` for implementation changes that still fit the current specification and plan.
+## Architecture and artifacts
 
-After changing a specification, refine the plan before continuing implementation.
+`Commands = workflow`, `Skills = capabilities`, `Artifacts = persistent state`.
 
-## Project files
-
-Duckbill stores its work as Markdown in the project:
+Authority flows `specification -> plan -> tasks -> code`. Duckbill keeps four skills: `duckbill-specification`,
+`duckbill-planning`, `duckbill-execution`, and `duckbill-validation`.
 
 ```text
 .duckbill/
-├── constitution.md                 optional project-wide guidance
-└── specs/
-    └── <feature>/
-        ├── spec.md                 requirements and acceptance criteria
-        ├── plan.md                 technical approach
-        └── tasks.md                task IDs, dependencies, and progress
+|-- constitution.md
+`-- specs/<feature>/
+    |-- spec.md
+    |-- plan.md
+    `-- tasks.md
 ```
-
-These files are the workflow state and can be reviewed and committed with the rest of the project.
 
 ## License
 
