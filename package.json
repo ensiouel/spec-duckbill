@@ -1,37 +1,29 @@
 {
   "name": "spec-duckbill",
-  "version": "2.0.0",
-  "description": "A file-first spec-driven development extension for Pi",
+  "version": "3.0.0",
+  "description": "Agent-native spec-driven development conventions and capabilities for Pi",
   "license": "MIT",
-  "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.83.0 <1"
-  },
-  "peerDependenciesMeta": {
-    "@earendil-works/pi-coding-agent": {
-      "optional": true
-    }
-  },
   "keywords": [
     "pi-package",
+    "agent-skills",
     "spec-driven-development"
   ],
   "files": [
-    "assets",
-    "src",
+    "prompts",
+    "skills",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "node --test",
-    "check": "npm test"
+    "verify": "npm test"
   },
   "pi": {
-    "extensions": [
-      "./src/index.mjs"
+    "prompts": [
+      "./prompts"
+    ],
+    "skills": [
+      "./skills"
     ]
   }
 }
