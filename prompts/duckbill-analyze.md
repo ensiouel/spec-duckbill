@@ -18,5 +18,6 @@ Analysis MUST be read-only and specification-only. It MUST NOT repair findings o
 separate scope.
 
 Finish with `completed` or `stopped` and report concise, actionable findings. When specification refinement is
-appropriate, translate the skill's semantic owner, reason, and needed change into one copy-paste
-`/duckbill-refine-spec` command. Do not execute it.
+appropriate, translate the skill's semantic owner, reason, and needed change into the copy-paste command
+`/duckbill-refine-spec $1 "<result-derived product feedback>"`, replacing the placeholder with concise feedback from
+the finding. Do not execute it.

@@ -19,6 +19,8 @@ code, tests, justified relevant configuration, and only the selected task's comp
 `spec.md` or `plan.md`, select another task, or start another Duckbill operation.
 
 Finish with `completed` or `stopped`. Report changed files, verification, and whether the selected task is `completed`
-or `pending`. If feedback changes technical design, stop before implementation mutation and suggest a copy-paste
-`/duckbill-refine-plan` command. If it changes specification-owned WHAT or WHY, stop before implementation mutation and
-suggest `/duckbill-refine-spec`. Do not load an upstream skill or execute a suggested command.
+or `pending`. If feedback changes technical design, stop before implementation mutation and suggest the copy-paste
+`/duckbill-refine-plan $1 "<result-derived technical feedback>"` command. If it changes specification-owned WHAT or WHY,
+stop before implementation mutation and suggest `/duckbill-refine-spec $1 "<result-derived product feedback>"`. Replace
+each feedback placeholder with concise feedback from the result. Do not load an upstream skill or execute a suggested
+command.

@@ -16,5 +16,5 @@ The feature argument MUST be present. Use `duckbill-specification` for its initi
 creation of only the feature workspace and its minimal draft specification. It MUST NOT author a ready specification,
 create planning artifacts, generate a constitution, or start another Duckbill operation.
 
-Finish with `completed` or `stopped`, list changed artifacts or the blocker, and suggest the immediate next Duckbill
-command when useful.
+Finish with `completed` or `stopped`, list changed artifacts or the blocker, and, when useful, suggest the immediate
+next step as `/duckbill-spec $1` without executing it.

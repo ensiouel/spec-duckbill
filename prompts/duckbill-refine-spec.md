@@ -18,5 +18,6 @@ MUST NOT start another Duckbill operation. If refinement needs an unresolved pro
 it.
 
 Finish with `completed` or `stopped`. Report changed requirements or acceptance criteria and downstream planning impact.
-When planning reconciliation is clearly required, suggest a copy-paste `/duckbill-refine-plan` command without executing
-it.
+When planning reconciliation is clearly required, suggest the copy-paste command
+`/duckbill-refine-plan $1 "<result-derived technical reconciliation feedback>"`, replacing the placeholder with concise
+feedback from the result. Do not execute it.

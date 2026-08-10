@@ -18,6 +18,9 @@ start another Duckbill operation. Planning must compare the feedback with the co
 mutating planning artifacts.
 
 Finish with `completed` or `stopped`. Report affected tasks. If specification-owned meaning would change, stop before
-mutation and suggest a copy-paste `/duckbill-refine-spec` command. After successful refinement, suggest
-`/duckbill-refine-code` for an implemented task that needs adjustment or `/duckbill-execute` for pending or new task
-work when applicable. Do not execute a suggested command.
+mutation and suggest the copy-paste command `/duckbill-refine-spec $1 "<result-derived product feedback>"`, replacing
+the placeholder with concise feedback from the result. After successful refinement, when applicable, suggest
+`/duckbill-refine-code $1 <task-id> "<result-derived implementation feedback>"` for an implemented task that needs
+adjustment or `/duckbill-execute $1 <task-id>` for pending or new task work. Replace `<task-id>` with the affected task
+ID when it is known; otherwise retain the placeholder. Replace each feedback placeholder with concise feedback from the
+result. Do not execute a suggested command.

@@ -19,7 +19,9 @@ belongs to code refinement. This command MAY modify application code, tests, and
 It MUST NOT modify the specification or plan, select a different task, or start another Duckbill operation.
 
 Finish with `completed` or `stopped`. Report changed files, verification, remaining blockers, and any upstream owner
-needed. Translate a planning-owned stop into `/duckbill-refine-plan` and a specification-owned stop into
-`/duckbill-refine-spec`. If execution-owned work remains, suggest `/duckbill-refine-code` for an implemented task that
-needs adjustment or `/duckbill-execute` for pending task work. Do not execute a suggested command or automatically
-choose another task.
+needed. Translate a planning-owned stop into `/duckbill-refine-plan $1 "<result-derived technical feedback>"` and a
+specification-owned stop into `/duckbill-refine-spec $1 "<result-derived product feedback>"`, replacing each feedback
+placeholder with concise feedback from the result. If execution-owned work remains, suggest
+`/duckbill-refine-code $1 $2 "<result-derived implementation feedback>"` for the implemented task that needs adjustment
+or `/duckbill-execute $1 <task-id>` for pending task work; replace the feedback placeholder with concise feedback from
+the result. Do not execute a suggested command or automatically choose another task.

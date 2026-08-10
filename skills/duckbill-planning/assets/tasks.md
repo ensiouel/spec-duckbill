@@ -2,7 +2,9 @@
 
 ### T1: <Coherent implementation outcome>
 
-**Status:** pending **Depends on:** none **Covers:** R1, A1
+**Status:** pending 
+**Depends on:** none 
+**Covers:** R1, A1
 
 **Touchpoints:**
 

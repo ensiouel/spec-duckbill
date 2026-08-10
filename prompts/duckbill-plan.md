@@ -16,5 +16,5 @@ The feature argument MUST be present. Use `duckbill-planning` for its author ope
 selected `plan.md` and `tasks.md`. It MUST NOT modify the specification or application code, and it MUST NOT start
 another Duckbill operation.
 
-Finish with `completed` or `stopped`. Report created artifacts, blockers, and dependency-ready task IDs. Suggest an
-explicit execution command template without automatically selecting or executing a task.
+Finish with `completed` or `stopped`. Report created artifacts, blockers, and dependency-ready task IDs. Suggest the
+explicit execution template `/duckbill-execute $1 <task-id>` without automatically selecting or executing a task.

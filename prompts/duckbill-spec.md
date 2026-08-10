@@ -17,4 +17,5 @@ only the selected `spec.md`. It MUST NOT create or modify planning artifacts or 
 another Duckbill operation.
 
 Finish with `completed` or `stopped`. Report material decisions, clarification needs, and readiness. When complete,
-suggest planning as the next operation and mention specification analysis only as an optional review.
+suggest `/duckbill-plan $1` as the next step; mention `/duckbill-analyze $1` only as an optional review. Do not execute
+either command.
