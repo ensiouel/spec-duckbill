@@ -1,6 +1,6 @@
 {
   "name": "spec-duckbill",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Agent-native spec-driven development conventions and capabilities for Pi",
   "license": "MIT",
   "keywords": [
